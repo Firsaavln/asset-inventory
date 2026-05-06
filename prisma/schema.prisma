@@ -1,0 +1,52 @@
+// --- BAGIAN KONFIGURASI DATABASE (Yang Sempat Hilang) ---
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// --- TABEL MASTER KATEGORI ---
+model Category {
+  id            Int      @id @default(autoincrement())
+  category_name String
+  owner_dept    String
+  assets        Asset[]
+  created_at    DateTime @default(now())
+}
+
+// --- TABEL MASTER ASET (Versi Lengkap) ---
+model Asset {
+  id              Int      @id @default(autoincrement())
+  asset_code      String   @unique
+  name            String
+  category_id     Int
+  
+  status          String   @default("Available") // Available, Assigned, Broken, Upgrading, Maintenance
+  purchase_date   DateTime
+  
+  specification   String?  @db.Text
+  purchase_price  Float?
+  vendor_name     String?
+  warranty_expiry DateTime?
+
+  created_at      DateTime @default(now())
+  
+  category        Category     @relation(fields: [category_id], references: [id])
+  assignments     Assignment[] 
+}
+
+// --- TABEL TRANSAKSI PEMINJAMAN ---
+model Assignment {
+  id            Int       @id @default(autoincrement())
+  asset_id      Int
+  borrower_name String
+  department    String
+  assign_date   DateTime  @default(now())
+  return_date   DateTime?
+  notes         String?
+
+  asset         Asset     @relation(fields: [asset_id], references: [id])
+}
