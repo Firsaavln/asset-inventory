@@ -1,9 +1,9 @@
-import { prisma } from "../../../lib/prisma";
+import { prisma } from "../../../../lib/prisma";
 import QRCode from "react-qr-code";
 import { Tag, Calendar, User, Box, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import PrintButton from "../../../components/PrintButton";
+import PrintButton from "../../../../components/PrintButton";
 
 export default async function AssetDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = await params;
