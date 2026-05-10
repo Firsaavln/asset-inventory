@@ -1,4 +1,4 @@
-import { prisma } from "../lib/prisma";
+import { prisma } from "../../lib/prisma";
 import { Box, CheckCircle2, Send, Laptop, BriefcaseBusiness, Activity } from "lucide-react";
 import Link from "next/link";
 

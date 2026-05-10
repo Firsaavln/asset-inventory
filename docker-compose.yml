@@ -1,0 +1,39 @@
+version: '3.8'
+services:
+  # Service Aplikasi Next.js
+  app:
+    build: .
+    container_name: asset-portal-app
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - DATABASE_URL=mysql://root:admin123@db:3306/db_asset_management
+      - NEXTAUTH_SECRET=GreeSecret2026!
+      - NEXTAUTH_URL=http://localhost:3000
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Service Database MySQL
+  db:
+    image: mysql:8.0
+    container_name: asset-portal-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: admin123
+      MYSQL_DATABASE: db_asset_management
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:

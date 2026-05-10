@@ -1,4 +1,4 @@
-// --- BAGIAN KONFIGURASI DATABASE (Yang Sempat Hilang) ---
+// --- KONFIGURASI DATABASE ---
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,23 +8,24 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// --- TABEL MASTER KATEGORI ---
+// --- TABEL 1: Category ---
 model Category {
   id            Int      @id @default(autoincrement())
   category_name String
-  owner_dept    String
-  assets        Asset[]
+  owner_dept    String   // Berisi "IT" atau "GA"
   created_at    DateTime @default(now())
+  
+  assets        Asset[]
 }
 
-// --- TABEL MASTER ASET (Versi Lengkap) ---
+// --- TABEL 2: Asset ---
 model Asset {
   id              Int      @id @default(autoincrement())
   asset_code      String   @unique
   name            String
   category_id     Int
   
-  status          String   @default("Available") // Available, Assigned, Broken, Upgrading, Maintenance
+  status          String   @default("Available")
   purchase_date   DateTime
   
   specification   String?  @db.Text
@@ -32,13 +33,15 @@ model Asset {
   vendor_name     String?
   warranty_expiry DateTime?
 
+  branch          String   @default("HQ")
+
   created_at      DateTime @default(now())
   
   category        Category     @relation(fields: [category_id], references: [id])
   assignments     Assignment[] 
 }
 
-// --- TABEL TRANSAKSI PEMINJAMAN ---
+// --- TABEL 3: Assignment ---
 model Assignment {
   id            Int       @id @default(autoincrement())
   asset_id      Int
@@ -49,4 +52,15 @@ model Assignment {
   notes         String?
 
   asset         Asset     @relation(fields: [asset_id], references: [id])
+}
+
+// --- TABEL 4: User (Untuk Login) ---
+model User {
+  id         Int      @id @default(autoincrement())
+  username   String   @unique
+  password   String   // Password dienkripsi (hashed)
+  name       String
+  role       String   @default("user") // superadmin, admin, user
+  branch     String   @default("HQ") // Lokasi cabang user ini bertugas
+  created_at DateTime @default(now())
 }

@@ -1,5 +1,5 @@
 // src/app/assignments/page.tsx
-import { getAvailableAssets, getActiveAssignments, assignAsset } from "../../services/assignmentService";
+import { getAvailableAssets, getActiveAssignments, assignAsset } from "../../../services/assignmentService";
 import { revalidatePath } from "next/cache";
 import { Send, User, Building2, ClipboardList, Laptop } from "lucide-react";
 
