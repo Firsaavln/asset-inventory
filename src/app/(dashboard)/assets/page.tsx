@@ -1,202 +1,179 @@
-import { getAssets, createAsset } from "../../../services/assetService";
-import { prisma } from "../../../lib/prisma";
-import { revalidatePath } from "next/cache";
-import { Plus, Laptop, Calendar, Tag, QrCode, Box, Activity, ShieldCheck, Store, CircleDollarSign, FileText } from "lucide-react";
+export const dynamic = "force-dynamic";
+
+import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../api/auth/[...nextauth]/route";
+import { 
+  Plus, MonitorSmartphone, Pencil, LayoutGrid, MapPin, Tag
+} from "lucide-react";
+import AssetFilters from "./AssetFilters";
+import ExportAssetButton from "@/components/ExportAssetButton";
+import DeleteAssetButton from "@/components/DeleteAssetButton"; // Buat komponen ini sama persis kayak DeleteCategory
 
-export default async function AssetsPage() {
-  const session = await getServerSession(authOptions);
+// Helper untuk format rupiah
+const formatRupiah = (angka: number) => {
+  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(angka);
+};
+
+export default async function AssetsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
   
-  if (!session) return null; 
+  // Ambil URL parameter untuk filter (Next.js 15 Style)
+  const resolvedParams = await searchParams;
+  const q = resolvedParams.q || "";
+  const cat = resolvedParams.category || "";
+  const loc = resolvedParams.location || "";
 
-  const userRole = (session.user as any).role || "user";
-  const userBranch = (session.user as any).branch || "HQ";
+  // Tarik daftar kategori untuk dropdown filter
+  const categories = await prisma.category.findMany({ select: { id: true, category_name: true } });
 
-  const assets = await getAssets(userRole, userBranch);
-  const categories = await prisma.category.findMany();
-
-  const canEdit = userRole === "superadmin" || userRole === "admin";
-
-  async function handleAddAsset(formData: FormData) {
-    "use server";
-    if (userRole !== "superadmin" && userRole !== "admin") throw new Error("Akses Ditolak");
-
-    const name = formData.get("name") as string;
-    const category_id = parseInt(formData.get("category_id") as string);
-    const purchase_date = new Date(formData.get("purchase_date") as string);
-    const status = formData.get("status") as string;
-    
-    const specification = formData.get("specification") as string;
-    const vendor_name = formData.get("vendor_name") as string;
-    const priceStr = formData.get("purchase_price") as string;
-    const purchase_price = priceStr ? parseFloat(priceStr) : undefined;
-    const warrantyStr = formData.get("warranty_expiry") as string;
-    const warranty_expiry = warrantyStr ? new Date(warrantyStr) : undefined;
-
-    if (name && category_id && purchase_date) {
-      await createAsset({ 
-        name, category_id, purchase_date, status, 
-        specification, purchase_price, vendor_name, warranty_expiry,
-        branch: userRole === "superadmin" ? "HQ" : userBranch 
-      });
-      revalidatePath("/assets");
-    }
-  }
+  // Tarik data aset yang difilter
+  const assets = await prisma.asset.findMany({
+    where: {
+      asset_name: { contains: q },
+      location: { contains: loc },
+      ...(cat ? { category_id: Number(cat) } : {})
+    },
+    include: { category: true },
+    orderBy: { created_at: "desc" }
+  });
 
   return (
-    <div className="p-8 md:p-12 max-w-7xl mx-auto">
-      {/* Header Halaman */}
-      <div className="mb-10">
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Manajemen Aset</h1>
-        <p className="text-base text-slate-500 mt-2">
-          Pusat kendali inventaris - <span className="font-bold text-indigo-600 uppercase">Cabang: {userBranch}</span>
-        </p>
+    <div className="p-6 md:p-10 max-w-[1400px] mx-auto space-y-8">
+      
+      {/* --- HEADER SECTION --- */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden">
+        <div className="absolute -top-10 -right-10 w-40 h-40 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-full blur-2xl -z-10"></div>
+        
+        <div className="flex items-center gap-4">
+          <div className="p-4 bg-gradient-to-br from-indigo-500 to-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-200 hidden sm:block">
+            <MonitorSmartphone className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Inventaris Aset</h1>
+            <p className="text-sm font-medium text-slate-500 mt-1">Kelola data fisik, finansial, dan lokasi aset PT Gree Electric.</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <ExportAssetButton />
+          <Link href="/assets/add" className="flex items-center justify-center gap-2 bg-slate-900 hover:bg-indigo-600 text-white px-6 py-4 rounded-2xl font-bold shadow-lg shadow-slate-200 hover:shadow-indigo-200 transition-all active:scale-95 whitespace-nowrap">
+            <Plus className="w-5 h-5" /> Registrasi Aset
+          </Link>
+        </div>
       </div>
 
-      {/* --- FORM INPUT HANYA MUNCUL UNTUK ADMIN & SUPERADMIN --- */}
-      {canEdit && (
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 mb-10">
-          <div className="flex items-center gap-2 mb-6">
-            <div className="p-2 bg-indigo-50 rounded-lg">
-              <Plus className="w-5 h-5 text-indigo-600" />
-            </div>
-            <h2 className="text-lg font-bold text-slate-800">Registrasi Aset Baru</h2>
-          </div>
-          
-          <form action={handleAddAsset} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-              <div className="md:col-span-1">
-                <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1.5"><Laptop className="w-4 h-4 text-slate-400"/> Nama Barang</label>
-                <input type="text" name="name" required placeholder="Contoh: ThinkPad T14" className="w-full border border-slate-200 bg-slate-50 text-slate-900 text-sm p-3 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:text-slate-400" />
-              </div>
-              <div className="md:col-span-1">
-                <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1.5"><Tag className="w-4 h-4 text-slate-400"/> Kategori</label>
-                <select name="category_id" required className="w-full border border-slate-200 bg-slate-50 text-slate-900 text-sm p-3 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all">
-                  <option value="">Pilih Kategori...</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>{cat.category_name} ({cat.owner_dept})</option>
-                  ))}
-                </select>
-              </div>
-              <div className="md:col-span-1">
-                <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1.5"><Calendar className="w-4 h-4 text-slate-400"/> Tgl Pembelian</label>
-                <input type="date" name="purchase_date" required className="w-full border border-slate-200 bg-slate-50 text-slate-900 text-sm p-3 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
-              </div>
-              <div className="md:col-span-1">
-                <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1.5"><Activity className="w-4 h-4 text-slate-400"/> Status</label>
-                <select name="status" required className="w-full border border-slate-200 bg-slate-50 text-slate-900 text-sm p-3 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all">
-                  <option value="Available">Available (Tersedia)</option>
-                  <option value="Upgrading">Upgrading</option>
-                  <option value="Maintenance">Maintenance</option>
-                  <option value="Broken">Broken</option>
-                </select>
-              </div>
-            </div>
+      {/* --- PENCARIAN & FILTER BAR --- */}
+      <AssetFilters categories={categories} />
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
-              <div className="md:col-span-1">
-                <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1.5"><Store className="w-4 h-4 text-slate-400"/> Nama Vendor</label>
-                <input type="text" name="vendor_name" placeholder="Contoh: EnterKomputer" className="w-full border border-slate-200 bg-slate-50 text-slate-900 text-sm p-3 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:text-slate-400" />
-              </div>
-              <div className="md:col-span-1">
-                <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1.5"><CircleDollarSign className="w-4 h-4 text-slate-400"/> Harga Beli (Rp)</label>
-                <input type="number" name="purchase_price" placeholder="Contoh: 15000000" className="w-full border border-slate-200 bg-slate-50 text-slate-900 text-sm p-3 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:text-slate-400" />
-              </div>
-              <div className="md:col-span-1">
-                <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-slate-400"/> Expired Garansi</label>
-                <input type="date" name="warranty_expiry" className="w-full border border-slate-200 bg-slate-50 text-slate-900 text-sm p-3 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-6">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1.5"><FileText className="w-4 h-4 text-slate-400"/> Spesifikasi Lengkap</label>
-                <textarea name="specification" rows={2} placeholder="Detail RAM, Storage, dll..." className="w-full border border-slate-200 bg-slate-50 text-slate-900 text-sm p-3 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:text-slate-400"></textarea>
-              </div>
-              <div className="flex justify-end">
-                <button type="submit" className="bg-indigo-600 text-white text-sm font-bold px-8 py-3 rounded-xl hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-100 transition-all flex justify-center items-center gap-2 shadow-sm">
-                  <Plus className="w-4 h-4" /> Simpan Data Aset
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      )} 
-      {/* ^^^ TADI ERROR KARENA BAGIAN INI KEPOTONG ^^^ */}
-
-      {/* Tabel Data */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      {/* --- TABLE SECTION --- */}
+      <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full text-left border-collapse">
-            <thead className="bg-slate-50/80 border-b border-slate-200">
+            <thead className="bg-slate-50/80 border-b border-slate-100">
               <tr>
-                <th className="px-8 py-5 text-xs font-bold text-slate-500 uppercase tracking-widest">Kode Aset</th>
-                <th className="px-8 py-5 text-xs font-bold text-slate-500 uppercase tracking-widest">Nama Barang & Vendor</th>
-                <th className="px-8 py-5 text-xs font-bold text-slate-500 uppercase tracking-widest">Garansi / Harga</th>
-                <th className="px-8 py-5 text-xs font-bold text-slate-500 uppercase tracking-widest">Status</th>
+                <th className="px-6 py-5 text-xs font-extrabold text-slate-500 uppercase tracking-widest">Detail Aset</th>
+                <th className="px-6 py-5 text-xs font-extrabold text-slate-500 uppercase tracking-widest">Kategori & Lokasi</th>
+                <th className="px-6 py-5 text-xs font-extrabold text-slate-500 uppercase tracking-widest">Nilai Buku</th>
+                <th className="px-6 py-5 text-xs font-extrabold text-slate-500 uppercase tracking-widest">Status</th>
+                <th className="px-6 py-5 text-xs font-extrabold text-slate-500 uppercase tracking-widest text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {assets.map((asset) => (
-                <tr key={asset.id} className="hover:bg-slate-50/80 transition-colors group">
-                  <td className="px-8 py-5">
-                    <div className="flex items-center gap-3">
-                      <div className="p-1.5 bg-slate-100 rounded-md group-hover:bg-indigo-100 transition-colors">
-                        <QrCode className="w-4 h-4 text-slate-500 group-hover:text-indigo-600" />
+                <tr key={asset.id} className="hover:bg-slate-50/50 transition-colors group">
+                  
+                  {/* DETAIL ASET */}
+                  <td className="px-6 py-5">
+                    <div className="flex items-start gap-4">
+                      {/* Kalau ada gambar, tampilkan. Kalau nggak ada, pakai icon default */}
+                      <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                        {asset.asset_image ? (
+                          <img src={asset.asset_image} alt={asset.asset_name} className="w-full h-full object-cover" />
+                        ) : (
+                          <LayoutGrid className="w-5 h-5 text-slate-400" />
+                        )}
                       </div>
-                      <Link href={`/assets/${asset.id}`} className="text-sm font-mono font-bold text-indigo-600 tracking-tight hover:underline hover:text-indigo-800 transition-all cursor-pointer">
-                        {asset.asset_code}
-                      </Link>
+                      <div>
+                        <p className="text-sm font-bold text-slate-900">{asset.asset_name}</p>
+                        <p className="text-xs font-mono font-medium text-slate-500 mt-1">{asset.asset_code}</p>
+                      </div>
                     </div>
                   </td>
-                  <td className="px-8 py-5">
-                    <div className="text-sm font-bold text-slate-800">{asset.name}</div>
-                    <div className="text-xs font-medium text-slate-500 mt-1">{asset.vendor_name || asset.category?.category_name}</div>
-                  </td>
-                  <td className="px-8 py-5">
-                    <div className="text-sm font-semibold text-slate-700">
-                      {asset.purchase_price ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(asset.purchase_price) : "-"}
-                    </div>
-                    <div className="text-xs font-medium text-slate-500 mt-1 flex items-center gap-1">
-                      <ShieldCheck className="w-3 h-3 text-emerald-500" /> 
-                      {asset.warranty_expiry ? asset.warranty_expiry.toLocaleDateString('id-ID') : "Tanpa Garansi"}
+
+                  {/* KATEGORI & LOKASI */}
+                  <td className="px-6 py-5 space-y-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-black uppercase bg-indigo-50 text-indigo-700 border border-indigo-100">
+                      <Tag className="w-3 h-3" /> {asset.category.category_name}
+                    </span>
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                      <MapPin className="w-3.5 h-3.5 text-rose-400" /> {asset.location || "Lokasi Belum Di-set"}
                     </div>
                   </td>
-                  <td className="px-8 py-5">
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ring-1 ring-inset ${
-                        asset.status === 'Available' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 
-                        asset.status === 'Assigned' ? 'bg-blue-50 text-blue-700 ring-blue-600/20' : 
-                        asset.status === 'Upgrading' ? 'bg-purple-50 text-purple-700 ring-purple-600/20' : 
-                        'bg-red-50 text-red-700 ring-red-600/20'
+
+                  {/* HARGA / NILAI */}
+                  <td className="px-6 py-5">
+                    <p className="text-sm font-bold text-emerald-600">{formatRupiah(Number(asset.price))}</p>
+                    <p className="text-[10px] uppercase font-bold text-slate-400 mt-1">Kondisi: {asset.condition}</p>
+                  </td>
+
+                  {/* STATUS */}
+                  <td className="px-6 py-5">
+                    <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold ${
+                      asset.status === 'Available' ? 'bg-emerald-100 text-emerald-700' :
+                      asset.status === 'Assigned' ? 'bg-blue-100 text-blue-700' :
+                      asset.status === 'Maintenance' ? 'bg-amber-100 text-amber-700' :
+                      'bg-rose-100 text-rose-700'
                     }`}>
-                      <div className={`w-1.5 h-1.5 rounded-full ${
-                        asset.status === 'Available' ? 'bg-emerald-500' : 
-                        asset.status === 'Assigned' ? 'bg-blue-500' : 
-                        asset.status === 'Upgrading' ? 'bg-purple-500' : 
-                        'bg-red-500'
+                      <div className={`w-1.5 h-1.5 rounded-full mr-2 ${
+                        asset.status === 'Available' ? 'bg-emerald-500' :
+                        asset.status === 'Assigned' ? 'bg-blue-500' :
+                        asset.status === 'Maintenance' ? 'bg-amber-500' : 'bg-rose-500'
                       }`}></div>
                       {asset.status}
                     </span>
                   </td>
+
+                  {/* AKSI */}
+                 {/* AKSI */}
+<td className="px-6 py-5 text-right">
+  <div className="flex items-center justify-end gap-2">
+    
+    {/* 1. TOMBOL DETAIL (MATA) */}
+    <Link 
+      href={`/assets/${asset.id}`}
+      className="p-2.5 text-sky-500 bg-sky-50 hover:text-white hover:bg-sky-500 rounded-xl transition-all duration-300 shadow-sm hover:shadow-sky-200 active:scale-95"
+      title="Lihat Detail Aset"
+    >
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+    </Link>
+
+    {/* 2. TOMBOL EDIT (PENSIL) */}
+    <Link 
+      href={`/assets/${asset.id}/edit`}
+      className="p-2.5 text-indigo-500 bg-indigo-50 hover:text-white hover:bg-indigo-600 rounded-xl transition-all duration-300 shadow-sm hover:shadow-indigo-200 active:scale-95"
+      title="Edit Aset"
+    >
+      <Pencil className="w-4 h-4" />
+    </Link>
+    
+    {/* 3. TOMBOL HAPUS */}
+    {/* <DeleteAssetButton id={asset.id} assetName={asset.asset_name} /> */}
+  </div>
+</td>
                 </tr>
               ))}
-              {assets.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-8 py-16 text-center">
-                    <div className="flex flex-col items-center justify-center text-slate-400">
-                      <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
-                        <Box className="w-8 h-8 text-slate-300" />
-                      </div>
-                      <p className="text-sm font-medium">Belum ada data aset yang terdaftar di cabang ini.</p>
-                      {canEdit && <p className="text-xs mt-1 text-slate-400">Silakan input data aset baru melalui form di atas.</p>}
-                    </div>
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
+          
+          {/* EMPTY STATE */}
+          {assets.length === 0 && (
+             <div className="p-20 flex flex-col items-center justify-center text-center">
+               <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                 <MonitorSmartphone className="w-10 h-10 text-slate-300" />
+               </div>
+               <p className="text-slate-900 font-bold text-xl">Tidak Ada Data Aset</p>
+               <p className="text-slate-500 text-sm mt-1">Coba sesuaikan filter pencarian atau tambahkan aset baru.</p>
+             </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
-// --- KONFIGURASI DATABASE ---
+// prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,59 +9,81 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// --- TABEL 1: Category ---
+// --- TABEL KATEGORI ---
 model Category {
   id            Int      @id @default(autoincrement())
   category_name String
-  owner_dept    String   // Berisi "IT" atau "GA"
+  owner_dept    String   // IT atau GA
   created_at    DateTime @default(now())
-  
+  updated_at    DateTime @updatedAt
+
+  // Relasi ke tabel Asset
   assets        Asset[]
 }
 
-// --- TABEL 2: Asset ---
+// --- TABEL ASET UTAMA ---
 model Asset {
-  id              Int      @id @default(autoincrement())
-  asset_code      String   @unique
-  name            String
-  category_id     Int
+  id                Int       @id @default(autoincrement())
+  asset_code        String    @unique // Kode otomatis (misal: IT-LAP-001)
+  asset_name        String
   
-  status          String   @default("Available")
-  purchase_date   DateTime
+  // Relasi Kategori
+  category_id       Int
+  category          Category  @relation(fields: [category_id], references: [id])
   
-  specification   String?  @db.Text
-  purchase_price  Float?
-  vendor_name     String?
-  warranty_expiry DateTime?
+  // Detail Fisik & Lokasi
+  serial_number     String?   // Bisa kosong kalau furnitur
+  condition         String    @default("New") // New, Good, Fair, Damaged
+  location          String?   
+  managing_division String    // IT, GA, HR
+  description       String?   @db.Text
+  
+  // Media & Dokumen (Simpan path/URL filenya)
+  asset_image       String?   
+  invoice_file      String?   
 
-  branch          String   @default("HQ")
+  // Finansial & Vendor
+  price             Decimal   @db.Decimal(15, 2) // Support angka milyaran
+  vendor_name       String?   
+  purchase_date     DateTime
+  warranty_date     DateTime? 
 
-  created_at      DateTime @default(now())
+  // Status Lifecycle
+  status            String    @default("Available") // Available, Assigned, Maintenance, Damaged
   
-  category        Category     @relation(fields: [category_id], references: [id])
-  assignments     Assignment[] 
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+
+  // Relasi ke tabel Peminjaman
+  assignments       Assignment[]
 }
 
-// --- TABEL 3: Assignment ---
+// --- TABEL PEMINJAMAN (LOG AKTIVITAS) ---
 model Assignment {
   id            Int       @id @default(autoincrement())
+  
   asset_id      Int
+  asset         Asset     @relation(fields: [asset_id], references: [id])
+  
   borrower_name String
   department    String
+  
   assign_date   DateTime  @default(now())
   return_date   DateTime?
-  notes         String?
-
-  asset         Asset     @relation(fields: [asset_id], references: [id])
+  status        String    @default("Active") // Active, Returned
+  notes         String?   @db.Text
 }
 
-// --- TABEL 4: User (Untuk Login) ---
+// Tambahkan di paling bawah file
+
 model User {
   id         Int      @id @default(autoincrement())
-  username   String   @unique
-  password   String   // Password dienkripsi (hashed)
   name       String
-  role       String   @default("user") // superadmin, admin, user
-  branch     String   @default("HQ") // Lokasi cabang user ini bertugas
+  username   String   @unique  // 👈 Diganti jadi username
+  password   String
+  role       String   @default("STAFF")
+  branch     String   @default("ALL") // 👈 Tambahan untuk cabang
+  
   created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 }

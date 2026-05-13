@@ -1,8 +1,6 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-
-// PERBAIKAN: Sesuaikan jumlah '../' (4 kali) untuk naik dari folder [...nextauth] ke folder src/lib
-import { prisma } from "../../../../lib/prisma"; 
+import { prisma } from "@/lib/prisma"; // Path lebih bersih pakai alias
 import bcrypt from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
@@ -16,30 +14,47 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) return null;
 
-        let user = await prisma.user.findUnique({ where: { username: credentials.username } });
+        let user = await prisma.user.findUnique({ 
+          where: { username: credentials.username } 
+        });
 
+        // REVISI: Hapus syarat userCount === 0. 
+        // Selama akun 'superadmin' belum ada di DB, otomatis dibuatkan.
         if (!user && credentials.username === "superadmin") {
-          const userCount = await prisma.user.count();
-          if (userCount === 0) {
-            const hashedPassword = await bcrypt.hash(credentials.password, 10);
-            user = await prisma.user.create({
-              data: {
-                username: "superadmin",
-                password: hashedPassword,
-                name: "System Administrator",
-                role: "superadmin",
-                branch: "ALL"
-              }
-            });
-            return { id: user.id.toString(), name: user.name, username: user.username, role: user.role, branch: user.branch };
-          }
+          const hashedPassword = await bcrypt.hash(credentials.password, 10);
+          user = await prisma.user.create({
+            data: {
+              username: "superadmin",
+              password: hashedPassword,
+              name: "System Administrator",
+              role: "superadmin",
+              branch: "ALL"
+            }
+          });
+          return { 
+            id: user.id.toString(), 
+            name: user.name, 
+            username: user.username, 
+            role: user.role, 
+            branch: user.branch 
+          };
         }
 
+        // Kalau user nggak ketemu (dan bukan superadmin), tolak login
         if (!user) return null;
+
+        // Cocokkan password
         const isPasswordMatch = await bcrypt.compare(credentials.password, user.password);
         if (!isPasswordMatch) return null;
 
-        return { id: user.id.toString(), name: user.name, username: user.username, role: user.role, branch: user.branch };
+        // Berhasil login
+        return { 
+          id: user.id.toString(), 
+          name: user.name, 
+          username: user.username, 
+          role: user.role, 
+          branch: user.branch 
+        };
       }
     })
   ],
