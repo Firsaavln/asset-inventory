@@ -1,108 +1,128 @@
 import { prisma } from "@/lib/prisma";
-import { notFound } from "next/navigation";
-import { updateUser, resetPassword } from "../../actions";
+import { updateUser } from "../../actions";
 import Link from "next/link";
-import { ArrowLeft, Save, User, Key, Shield, Building2, LockKeyhole } from "lucide-react";
+import { ArrowLeft, UserCog, Shield, Building2 } from "lucide-react";
+import { BRANCHES } from "@/lib/constants"; 
+import { redirect } from "next/navigation";
 
+// Perbaikan: Definisi params untuk Next.js 15 harus dibungkus Promise
 export default async function EditUserPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = await params;
-  const id = parseInt(resolvedParams.id);
+  
+  // Perbaikan: Konversi ID ke Number karena database Anda Integer
+  const userId = parseInt(resolvedParams.id, 10);
 
-  const user = await prisma.user.findUnique({ where: { id } });
-  if (!user) notFound();
+  // Jika hasil parsing bukan angka, balikkan ke list
+  if (isNaN(userId)) {
+    redirect("/users");
+  }
 
-  // Bind ID ke Server Actions
-  const updateProfileAction = updateUser.bind(null, id);
-  const resetPasswordAction = resetPassword.bind(null, id);
+  // Ambil data user menggunakan ID angka
+  const user = await prisma.user.findUnique({
+    where: { id: userId } // Sekarang ID sudah berupa Number
+  });
+
+  if (!user) {
+    redirect("/users");
+  }
 
   return (
-    <div className="p-6 lg:p-10 max-w-4xl mx-auto space-y-8">
-      <Link href="/users" className="flex items-center text-xs font-black text-slate-400 hover:text-indigo-600 gap-2 uppercase tracking-widest group w-fit">
-        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Kembali ke Manajemen Akun
-      </Link>
+    <div className="p-6 lg:p-10 max-w-4xl mx-auto space-y-8 font-sans">
+      
+      {/* HEADER */}
+      <header className="flex items-center gap-4">
+        <Link href="/users" className="p-2.5 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm">
+          <ArrowLeft className="w-5 h-5" />
+        </Link>
+        <div>
+          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+            Edit Akun Pengguna
+          </h1>
+          <p className="text-slate-500 text-sm mt-1 font-medium">Ubah nama, wewenang, atau penempatan cabang.</p>
+        </div>
+      </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* BAGIAN 1: EDIT PROFIL */}
-        <div className="lg:col-span-2 bg-white rounded-[2.5rem] p-8 sm:p-10 border border-slate-200/60 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-bl-full -z-10 opacity-60"></div>
-          
-          <div className="mb-8 border-b border-slate-100 pb-6">
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Informasi Profil</h2>
-            <p className="text-sm text-slate-500 font-medium mt-1">Perbarui data identitas dan hak akses akun.</p>
+      {/* FORM CARD */}
+      <div className="bg-white rounded-[2rem] border border-slate-200/60 shadow-sm overflow-hidden">
+        <div className="p-6 sm:p-10 border-b border-slate-100 bg-slate-50/50 flex items-center gap-4">
+          <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center shadow-sm">
+            <UserCog className="w-6 h-6" />
           </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">@{user.username}</h2>
+            <p className="text-xs font-medium text-slate-500">Kosongkan kolom password jika tidak ingin mengubahnya.</p>
+          </div>
+        </div>
 
-          <form action={updateProfileAction} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="md:col-span-2 space-y-2">
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                <User className="w-3.5 h-3.5 text-indigo-500" /> Nama Lengkap
-              </label>
-              <input type="text" name="name" defaultValue={user.name} required className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-700 outline-none" />
+        <form action={updateUser} className="p-6 sm:p-10 space-y-6">
+          {/* Kirim ID user ke server action */}
+          <input type="hidden" name="id" value={user.id} />
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* NAMA LENGKAP */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nama Lengkap</label>
+              <input 
+                type="text" name="name" required defaultValue={user.name}
+                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:bg-white focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all outline-none" 
+              />
             </div>
 
+            {/* USERNAME (Read-only) */}
             <div className="space-y-2">
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                <User className="w-3.5 h-3.5 text-indigo-500" /> Username
-              </label>
-              <input type="text" name="username" defaultValue={user.username} required className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-700 outline-none" />
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Username</label>
+              <input 
+                type="text" defaultValue={user.username} readOnly
+                className="w-full p-4 bg-slate-100 border border-slate-200 rounded-2xl text-sm font-bold text-slate-400 cursor-not-allowed outline-none" 
+              />
             </div>
 
+            {/* PASSWORD BARU */}
             <div className="space-y-2">
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                <Shield className="w-3.5 h-3.5 text-indigo-500" /> Level Akses
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Password Baru</label>
+              <input 
+                type="password" name="password" placeholder="Biarkan kosong jika tidak diubah" minLength={6}
+                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:bg-white focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all outline-none" 
+              />
+            </div>
+
+            {/* LEVEL AKSES (ROLE) */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5" /> Level Akses
               </label>
-              <select name="role" defaultValue={user.role} className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-700 outline-none cursor-pointer">
-                <option value="staff">Staff</option>
-                <option value="admin">Admin</option>
-                <option value="superadmin">Superadmin</option>
+              <select name="role" required defaultValue={user.role} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:bg-white focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all outline-none cursor-pointer">
+                <option value="user">User (Viewer & Data Aset)</option>
+                <option value="admin">Admin (CRUD Aset Cabang)</option>
+                <option value="superadmin">Superadmin (Akses Penuh)</option>
               </select>
             </div>
 
-            <div className="md:col-span-2 space-y-2">
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                <Building2 className="w-3.5 h-3.5 text-indigo-500" /> Cabang / Divisi
+            {/* PENEMPATAN CABANG */}
+            <div className="space-y-2 md:col-span-2 border-t border-slate-100 pt-6 mt-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5" /> Penempatan Cabang
               </label>
-              <input type="text" name="branch" defaultValue={user.branch || ""} className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-700 outline-none" />
+              <select name="branch" required defaultValue={user.branch || ""} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:bg-white focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all outline-none cursor-pointer">
+                <option value="">-- Pilih Cabang --</option>
+                {BRANCHES.map((branch) => (
+                  <option key={branch} value={branch}>{branch}</option>
+                ))}
+              </select>
             </div>
 
-            <div className="md:col-span-2 pt-2">
-              <button type="submit" className="bg-slate-900 hover:bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-sm transition-all shadow-lg active:scale-95 flex items-center gap-2 w-full sm:w-auto">
-                <Save className="w-4 h-4" /> Simpan Profil
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {/* BAGIAN 2: RESET PASSWORD */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200/60 shadow-sm">
-            <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center mb-6">
-              <LockKeyhole className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-black text-slate-900 mb-2">Keamanan Akun</h3>
-            <p className="text-[11px] text-slate-500 font-medium mb-6">Paksa pembaruan kata sandi jika staf lupa akses login mereka.</p>
-
-            <form action={resetPasswordAction} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                  <Key className="w-3.5 h-3.5 text-rose-500" /> Kata Sandi Baru
-                </label>
-                <input 
-                  type="password" 
-                  name="new_password" 
-                  required 
-                  placeholder="Minimal 8 karakter..."
-                  className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-2 focus:ring-rose-500 text-sm font-bold text-slate-700 outline-none" 
-                />
-              </div>
-
-              <button type="submit" className="w-full bg-white hover:bg-rose-600 text-rose-600 hover:text-white border-2 border-rose-100 hover:border-rose-600 p-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2">
-                Reset Password
-              </button>
-            </form>
           </div>
-        </div>
 
+          <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
+            <Link href="/users" className="px-6 py-3.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">
+              Batal
+            </Link>
+            <button type="submit" className="px-8 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-amber-200 transition-all active:scale-95">
+              Simpan Perubahan
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

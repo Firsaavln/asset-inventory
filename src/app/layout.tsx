@@ -7,8 +7,8 @@ import { Toaster } from "sonner"; // Kalau lu pakai Sonner untuk notifikasi
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Asset Portal - PT Gree Electric",
-  description: "Sistem Manajemen Aset IT & General Affair",
+  title: "Asset Portal - PT GEAI",
+  description: "Sistem Manajemen Asset Perusahaan untuk PT Gree Electric Appliances Indonesia",
 };
 
 export default function RootLayout({

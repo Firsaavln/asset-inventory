@@ -1,8 +1,9 @@
 "use client";
-import { signIn } from "next-auth/react";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, User, ShieldAlert, Cpu, Server, CheckCircle2 } from "lucide-react";
+import { loginAction } from "./actions"; // 👈 Import fungsi manual yang kita buat
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -13,19 +14,24 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setError("");
+    setLoading(true); 
+    setError("");
 
-    const res = await signIn("credentials", {
-      username, password, redirect: false,
-    });
+    // 👈 Bungkus data ke FormData untuk dikirim ke Server Action
+    const formData = new FormData();
+    formData.append("username", username);
+    formData.append("password", password);
 
+    // 👈 Panggil server action kita
+    const res = await loginAction(formData);
+
+    // Jika ada error (misal password salah)
     if (res?.error) {
-      setError("Kredensial tidak valid. Silakan coba lagi.");
+      setError(res.error);
       setLoading(false);
-    } else {
-      router.push("/");
-      router.refresh();
     }
+    // Note: Jika sukses, loginAction di server akan OTOMATIS melakukan redirect("/")
+    // Jadi kita tidak perlu router.push("/") di sini lagi.
   };
 
   return (

@@ -1,70 +1,103 @@
-import { createUser } from "../actions";
+import { addUser } from "../actions";
 import Link from "next/link";
-import { ArrowLeft, UserPlus, User, Key, Shield, Building2 } from "lucide-react";
+import { ArrowLeft, UserPlus, Shield, Building2 } from "lucide-react";
+import { BRANCHES } from "@/lib/constants"; // 👈 Import daftar cabang
 
 export default function AddUserPage() {
   return (
-    <div className="p-6 lg:p-10 max-w-3xl mx-auto space-y-8">
-      <Link href="/users" className="flex items-center text-xs font-black text-slate-400 hover:text-indigo-600 gap-2 uppercase tracking-widest group w-fit">
-        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Kembali
-      </Link>
+    <div className="p-6 lg:p-10 max-w-4xl mx-auto space-y-8 font-sans">
+      
+      {/* HEADER */}
+      <header className="flex items-center gap-4">
+        <Link href="/users" className="p-2.5 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm">
+          <ArrowLeft className="w-5 h-5" />
+        </Link>
+        <div>
+          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+            Tambah Akun Baru
+          </h1>
+          <p className="text-slate-500 text-sm mt-1 font-medium">Buat kredensial akses untuk staf atau administrator.</p>
+        </div>
+      </header>
 
-      <div className="bg-white rounded-[2.5rem] p-8 sm:p-12 border border-slate-200/60 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-40 h-40 bg-indigo-50 rounded-bl-full -z-10"></div>
-        
-        <div className="flex items-center gap-4 mb-10">
-          <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+      {/* FORM CARD */}
+      <div className="bg-white rounded-[2rem] border border-slate-200/60 shadow-sm overflow-hidden">
+        <div className="p-6 sm:p-10 border-b border-slate-100 bg-slate-50/50 flex items-center gap-4">
+          <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center shadow-sm">
             <UserPlus className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Pendaftaran Akun Baru</h2>
-            <p className="text-sm text-slate-500 font-medium">Buat akses untuk staf atau administrator.</p>
+            <h2 className="text-lg font-bold text-slate-800">Detail Kredensial</h2>
+            <p className="text-xs font-medium text-slate-500">Pastikan username unik dan password kuat.</p>
           </div>
         </div>
 
-        <form action={createUser} className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="md:col-span-2 space-y-2.5">
-            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-              <User className="w-4 h-4 text-indigo-500" /> Nama Lengkap
-            </label>
-            <input type="text" name="name" required placeholder="Contoh: Budi Santoso" className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-700 outline-none" />
+        <form action={addUser} className="p-6 sm:p-10 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* NAMA LENGKAP */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nama Lengkap</label>
+              <input 
+                type="text" name="name" required placeholder="Cth: Firsawanto Saputra"
+                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none" 
+              />
+            </div>
+
+            {/* USERNAME */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Username</label>
+              <input 
+                type="text" name="username" required placeholder="Cth: firsawanto_s"
+                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none" 
+              />
+            </div>
+
+            {/* PASSWORD */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Password Default</label>
+              <input 
+                type="password" name="password" required placeholder="Minimal 6 karakter" minLength={6}
+                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none" 
+              />
+            </div>
+
+            {/* LEVEL AKSES (ROLE) */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5" /> Level Akses
+              </label>
+              <select name="role" required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none cursor-pointer">
+                <option value="user">User (Viewer & Data Aset)</option>
+                <option value="admin">Admin (CRUD Aset Cabang)</option>
+                <option value="superadmin">Superadmin (Akses Penuh)</option>
+              </select>
+            </div>
+
+            {/* 🔥 PENEMPATAN CABANG (DROPDOWN DINAMIS) 🔥 */}
+            <div className="space-y-2 md:col-span-2 border-t border-slate-100 pt-6 mt-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5" /> Penempatan Cabang
+              </label>
+              <select name="branch" required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none cursor-pointer">
+                <option value="">-- Pilih Cabang --</option>
+                {BRANCHES.map((branch) => (
+                  <option key={branch} value={branch}>{branch}</option>
+                ))}
+              </select>
+              <p className="text-[10px] font-medium text-slate-400 mt-1">
+                *Admin dan User hanya bisa melihat serta mengelola data di cabangnya sendiri.
+              </p>
+            </div>
+
           </div>
 
-          <div className="space-y-2.5">
-            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-              <User className="w-4 h-4 text-indigo-500" /> Username
-            </label>
-            <input type="text" name="username" required placeholder="budi.s" className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-700 outline-none lowercase" />
-          </div>
-
-          <div className="space-y-2.5">
-            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-              <Key className="w-4 h-4 text-indigo-500" /> Password
-            </label>
-            <input type="password" name="password" required placeholder="••••••••" className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-700 outline-none" />
-          </div>
-
-          <div className="space-y-2.5">
-            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-              <Shield className="w-4 h-4 text-indigo-500" /> Level Akses
-            </label>
-            <select name="role" className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-700 outline-none cursor-pointer">
-              <option value="staff">Staff (Hanya lihat aset)</option>
-              <option value="admin">Admin (Kelola aset)</option>
-              <option value="superadmin">Superadmin (Akses Penuh)</option>
-            </select>
-          </div>
-
-          <div className="space-y-2.5">
-            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-indigo-500" /> Penempatan Cabang
-            </label>
-            <input type="text" name="branch" defaultValue="Pusat" className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-700 outline-none" />
-          </div>
-
-          <div className="md:col-span-2 pt-4">
-            <button type="submit" className="w-full bg-slate-900 hover:bg-indigo-600 text-white p-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-slate-200 active:scale-[0.98] flex items-center justify-center gap-3">
-              <UserPlus className="w-5 h-5" /> Buat Akun Baru
+          <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
+            <Link href="/users" className="px-6 py-3.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">
+              Batal
+            </Link>
+            <button type="submit" className="px-8 py-3.5 bg-slate-900 hover:bg-indigo-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-slate-200 transition-all active:scale-95">
+              Simpan Akun Baru
             </button>
           </div>
         </form>

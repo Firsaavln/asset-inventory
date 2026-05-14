@@ -91,7 +91,7 @@ export default async function DashboardPage() {
            </div>
            <div>
              <p className="text-[11px] font-bold text-indigo-200 uppercase tracking-[0.2em] mb-1">Total Investasi Aktif</p>
-             <p className="text-2xl sm:text-3xl font-black tracking-tight">{formatRupiah(totalValue)}</p>
+             <p className="text-xl sm:text-3xl font-black tracking-tight">{formatRupiah(totalValue)}</p>
            </div>
         </div>
       </div>
