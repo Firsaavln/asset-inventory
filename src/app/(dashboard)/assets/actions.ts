@@ -1,10 +1,10 @@
 "use server";
 
-
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import fs from "fs/promises";
 import path from "path";
+import { recordLog } from "@/lib/logger"; // 👈 Import Logger
 
 export async function createAsset(formData: FormData) {
   try {
@@ -73,7 +73,11 @@ export async function createAsset(formData: FormData) {
       }
     });
 
+    // 👈 CATAT KE LOG
+    await recordLog("CREATE", "ASSET", `Menambahkan aset baru: ${asset_code} - ${asset_name}`);
+
     revalidatePath("/assets");
+    revalidatePath("/logs"); // 👈 Trigger update log
     return { success: true };
 
   } catch (error) {
@@ -85,8 +89,18 @@ export async function createAsset(formData: FormData) {
 // 1. FUNGSI HAPUS ASET
 export async function deleteAssetAction(id: number) {
   try {
+    // Cari data aset terlebih dahulu untuk dicatat di log
+    const asset = await prisma.asset.findUnique({ where: { id } });
+    
     await prisma.asset.delete({ where: { id } });
+    
+    if (asset) {
+      // 👈 CATAT KE LOG
+      await recordLog("DELETE", "ASSET", `Menghapus aset: ${asset.asset_code} - ${asset.asset_name}`);
+    }
+
     revalidatePath("/assets");
+    revalidatePath("/logs"); // 👈 Trigger update log
     return { success: true };
   } catch (error) {
     return { success: false, message: "Aset gagal dihapus. Pastikan data tidak terkunci oleh riwayat peminjaman." };
@@ -168,11 +182,34 @@ export async function updateAsset(id: number, formData: FormData) {
         data: updateData
       });
   
+      // 👈 CATAT KE LOG
+      await recordLog("UPDATE", "ASSET", `Memperbarui data aset: ${asset_name}`);
+
       revalidatePath("/assets");
       revalidatePath(`/assets/${id}`);
+      revalidatePath("/logs"); // 👈 Trigger update log
       return { success: true };
     } catch (error) {
       console.error(error);
       throw new Error("Gagal memperbarui aset.");
     }
   }
+
+  // 3. FUNGSI MEMINDAHKAN KE DISPOSAL (Soft Delete)
+export async function disposeAssetAction(id: number) {
+  try {
+    const asset = await prisma.asset.update({
+      where: { id },
+      data: { status: "Disposed" }
+    });
+
+    await recordLog("UPDATE", "ASSET", `Memindahkan aset ke Disposal: ${asset.asset_code} - ${asset.asset_name}`);
+
+    revalidatePath("/assets");
+    revalidatePath("/disposals");
+    revalidatePath("/logs");
+    return { success: true };
+  } catch (error) {
+    return { success: false, message: "Gagal memindahkan aset ke disposal." };
+  }
+}

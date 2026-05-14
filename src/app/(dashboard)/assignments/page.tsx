@@ -1,25 +1,35 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { 
-  Plus, Laptop, Pencil, RotateCcw, 
-  User, Building2
-} from "lucide-react";
-import ExportAssignButton from "../../../components/ExportAssignButton"; // Komponen untuk export data ke Excel
+import { Plus, Laptop, Pencil, RotateCcw, User, Building2 } from "lucide-react";
+import ExportAssignButton from "../../../components/ExportAssignButton"; 
+import Pagination from "@/components/Pagination"; // 👈 Import Pagination
 import { deleteAssignment } from "./actions";
 
-export default async function AssignmentsPage() {
+export default async function AssignmentsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
+  // Paginasi Config
+  const resolvedParams = await searchParams;
+  const currentPage = Number(resolvedParams?.page) || 1;
+  const ITEMS_PER_PAGE = 10;
+
+  // Hitung total data
+  const totalItems = await prisma.assignment.count();
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+
+  // Ambil data Paginasi
   const rawAssignments = await prisma.assignment.findMany({
     orderBy: { assign_date: "desc" },
-    include: { asset: true }
+    include: { asset: true },
+    skip: (currentPage - 1) * ITEMS_PER_PAGE,
+    take: ITEMS_PER_PAGE,
   });
 
-  // --- FIX: SERIALIZATION (Konversi Decimal & Date ke Plain Object) ---
+  // Serialization Fix
   const activeAssignments = rawAssignments.map(item => ({
     ...item,
     assign_date: item.assign_date.toISOString(),
     asset: {
       ...item.asset,
-      price: Number(item.asset.price), // Konversi Decimal ke Number
+      price: Number(item.asset.price), 
       purchase_date: item.asset.purchase_date?.toISOString() || null,
       warranty_date: item.asset.warranty_date?.toISOString() || null,
       created_at: item.asset.created_at.toISOString(),
@@ -29,16 +39,13 @@ export default async function AssignmentsPage() {
 
   return (
     <div className="p-6 lg:p-10 space-y-10">
-      
       {/* HEADER SECTION */}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Handover Management</h1>
           <p className="text-slate-500 text-sm mt-1 font-medium italic">Monitoring distribusi aset PT Gree Appliances Indonesia.</p>
         </div>
-        
         <div className="flex items-center gap-3">
-          {/* Sekarang data ini sudah aman dikirim ke Client Component */}
           <ExportAssignButton data={activeAssignments} /> 
           <Link href="/assignments/add" className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all uppercase tracking-widest">
             <Plus className="w-4 h-4" /> New Handover
@@ -47,8 +54,8 @@ export default async function AssignmentsPage() {
       </header>
 
       {/* DATA TABLE */}
-      <div className="bg-white rounded-[2.5rem] border border-slate-200/60 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-[2.5rem] border border-slate-200/60 shadow-sm overflow-hidden flex flex-col">
+        <div className="overflow-x-auto flex-1">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100">
@@ -86,8 +93,6 @@ export default async function AssignmentsPage() {
                       <Link href={`/assignments/${item.id}/edit`} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
                         <Pencil className="w-4 h-4" />
                       </Link>
-                      
-                      {/* Pastikan memanggil fungsi dari actions.ts */}
                       <form action={async () => {
                         "use server";
                         await deleteAssignment(item.id, item.asset_id);
@@ -103,6 +108,7 @@ export default async function AssignmentsPage() {
             </tbody>
           </table>
         </div>
+        <Pagination totalPages={totalPages} currentPage={currentPage} />
       </div>
     </div>
   );

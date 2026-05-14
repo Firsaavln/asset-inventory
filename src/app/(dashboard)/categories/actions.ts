@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { recordLog } from "@/lib/logger"; // 👈 Import Logger
 
 // FUNGSI CREATE
 export async function createCategory(formData: FormData) {
@@ -17,7 +18,11 @@ export async function createCategory(formData: FormData) {
     },
   });
 
+  // 👈 CATAT KE LOG
+  await recordLog("CREATE", "CATEGORY", `Membuat kategori baru: ${name} (${dept})`);
+
   revalidatePath("/categories");
+  revalidatePath("/logs"); // 👈 Trigger update log
   return newCategory;
 }
 
@@ -33,18 +38,31 @@ export async function updateCategory(id: number, formData: FormData) {
     data: { category_name: name, owner_dept: dept },
   });
 
+  // 👈 CATAT KE LOG
+  await recordLog("UPDATE", "CATEGORY", `Memperbarui kategori: ${name}`);
+
   revalidatePath("/categories");
+  revalidatePath("/logs"); // 👈 Trigger update log
   return updated;
 }
 
 
 export async function deleteCategoryAction(id: number) {
     try {
+      // Cari nama kategori terlebih dahulu untuk dicatat di log
+      const category = await prisma.category.findUnique({ where: { id } });
+
       await prisma.category.delete({
         where: { id }
       });
       
+      if (category) {
+        // 👈 CATAT KE LOG
+        await recordLog("DELETE", "CATEGORY", `Menghapus kategori: ${category.category_name}`);
+      }
+
       revalidatePath("/categories");
+      revalidatePath("/logs"); // 👈 Trigger update log
       return { success: true };
       
     } catch (error) {

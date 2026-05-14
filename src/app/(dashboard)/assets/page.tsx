@@ -8,6 +8,7 @@ import {
 import AssetFilters from "./AssetFilters";
 import ExportAssetButton from "@/components/ExportAssetButton";
 import DeleteAssetButton from "@/components/DeleteAssetButton"; // Buat komponen ini sama persis kayak DeleteCategory
+import Pagination from "@/components/Pagination"; // 👈 Import komponen Pagination
 
 // Helper untuk format rupiah
 const formatRupiah = (angka: number) => {
@@ -16,24 +17,38 @@ const formatRupiah = (angka: number) => {
 
 export default async function AssetsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
   
-  // Ambil URL parameter untuk filter (Next.js 15 Style)
+  // Ambil URL parameter untuk filter dan pagination (Next.js 15 Style)
   const resolvedParams = await searchParams;
   const q = resolvedParams.q || "";
   const cat = resolvedParams.category || "";
   const loc = resolvedParams.location || "";
+  
+  // Setup parameter Pagination
+  const currentPage = Number(resolvedParams.page) || 1;
+  const ITEMS_PER_PAGE = 10; // Menampilkan 10 baris per halaman
 
   // Tarik daftar kategori untuk dropdown filter
   const categories = await prisma.category.findMany({ select: { id: true, category_name: true } });
 
-  // Tarik data aset yang difilter
+  // Satukan where clause agar count dan findMany menggunakan filter yang persis sama
+  const whereClause: any = {
+    asset_name: { contains: q },
+    location: { contains: loc },
+    status: { not: "Disposed" },
+    ...(cat ? { category_id: Number(cat) } : {})
+  };
+
+  // 1. Hitung TOTAL data untuk menentukan jumlah halaman (dengan filter aktif)
+  const totalItems = await prisma.asset.count({ where: whereClause });
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+
+  // 2. Tarik data aset yang difilter sesuai halaman aktif (SKIP & TAKE)
   const assets = await prisma.asset.findMany({
-    where: {
-      asset_name: { contains: q },
-      location: { contains: loc },
-      ...(cat ? { category_id: Number(cat) } : {})
-    },
+    where: whereClause,
     include: { category: true },
-    orderBy: { created_at: "desc" }
+    orderBy: { created_at: "desc" },
+    skip: (currentPage - 1) * ITEMS_PER_PAGE,
+    take: ITEMS_PER_PAGE
   });
 
   return (
@@ -65,7 +80,7 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
       <AssetFilters categories={categories} />
 
       {/* --- TABLE SECTION --- */}
-      <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col">
         <div className="overflow-x-auto">
           <table className="min-w-full text-left border-collapse">
             <thead className="bg-slate-50/80 border-b border-slate-100">
@@ -133,32 +148,31 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
                   </td>
 
                   {/* AKSI */}
-                 {/* AKSI */}
-<td className="px-6 py-5 text-right">
-  <div className="flex items-center justify-end gap-2">
-    
-    {/* 1. TOMBOL DETAIL (MATA) */}
-    <Link 
-      href={`/assets/${asset.id}`}
-      className="p-2.5 text-sky-500 bg-sky-50 hover:text-white hover:bg-sky-500 rounded-xl transition-all duration-300 shadow-sm hover:shadow-sky-200 active:scale-95"
-      title="Lihat Detail Aset"
-    >
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-    </Link>
+                  <td className="px-6 py-5 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      
+                      {/* 1. TOMBOL DETAIL (MATA) */}
+                      <Link 
+                        href={`/assets/${asset.id}`}
+                        className="p-2.5 text-sky-500 bg-sky-50 hover:text-white hover:bg-sky-500 rounded-xl transition-all duration-300 shadow-sm hover:shadow-sky-200 active:scale-95"
+                        title="Lihat Detail Aset"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                      </Link>
 
-    {/* 2. TOMBOL EDIT (PENSIL) */}
-    <Link 
-      href={`/assets/${asset.id}/edit`}
-      className="p-2.5 text-indigo-500 bg-indigo-50 hover:text-white hover:bg-indigo-600 rounded-xl transition-all duration-300 shadow-sm hover:shadow-indigo-200 active:scale-95"
-      title="Edit Aset"
-    >
-      <Pencil className="w-4 h-4" />
-    </Link>
-    
-    {/* 3. TOMBOL HAPUS */}
-    {/* <DeleteAssetButton id={asset.id} assetName={asset.asset_name} /> */}
-  </div>
-</td>
+                      {/* 2. TOMBOL EDIT (PENSIL) */}
+                      <Link 
+                        href={`/assets/${asset.id}/edit`}
+                        className="p-2.5 text-indigo-500 bg-indigo-50 hover:text-white hover:bg-indigo-600 rounded-xl transition-all duration-300 shadow-sm hover:shadow-indigo-200 active:scale-95"
+                        title="Edit Aset"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Link>
+                      
+                      {/* 3. TOMBOL HAPUS */}
+                      {/* <DeleteAssetButton id={asset.id} assetName={asset.asset_name} /> */}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -175,6 +189,10 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
              </div>
           )}
         </div>
+
+        {/* 👇 KOMPONEN PAGINATION DITAMPILKAN DI SINI */}
+        <Pagination totalPages={totalPages} currentPage={currentPage} />
+
       </div>
     </div>
   );

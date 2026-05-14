@@ -87,3 +87,15 @@ model User {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 }
+
+
+// Tambahkan ini di bagian bawah file
+model Log {
+  id        Int      @id @default(autoincrement())
+  action    String   // Contoh: "CREATE", "UPDATE", "DELETE"
+  entity    String   // Contoh: "ASSET", "USER", "ASSIGNMENT"
+  detail    String   @db.Text
+  user      String   // Nama user yang melakukan aksi
+  role      String   // Role user tersebut
+  createdAt DateTime @default(now())
+}
