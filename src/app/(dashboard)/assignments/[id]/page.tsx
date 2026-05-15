@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
+import { decrypt } from "@/lib/auth";
 import { 
   ArrowLeft, Laptop, User, Building2, Calendar, 
   ShieldCheck, CreditCard, Store, Info, 
   MapPin, QrCode, FileText, LayoutGrid, 
-  CheckCircle2, Box, Briefcase
+  CheckCircle2, Box, Briefcase, ShieldAlert // 👈 Tambah ShieldAlert
 } from "lucide-react";
 
 const formatRupiah = (angka: number) => {
@@ -13,6 +15,13 @@ const formatRupiah = (angka: number) => {
 };
 
 export default async function AssignmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  // 🔥 1. AMBIL SESSION LOGIN UNTUK FIREWALL
+  const cookieStore = await cookies();
+  const token = cookieStore.get("session")?.value;
+  const payload = token ? await decrypt(token) : null;
+  const userRole = payload?.role as string;
+  const userBranch = payload?.branch as string;
+
   const resolvedParams = await params;
   const data = await prisma.assignment.findUnique({
     where: { id: Number(resolvedParams.id) },
@@ -20,6 +29,24 @@ export default async function AssignmentDetailPage({ params }: { params: Promise
   });
 
   if (!data) return notFound();
+
+  // 🔥 2. READ FIREWALL: Blokir Akses Jika Cabang Berbeda
+  if (userRole !== "superadmin" && data.asset.branch !== userBranch) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-6 animate-in fade-in duration-500">
+        <div className="w-24 h-24 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mb-6">
+          <ShieldAlert className="w-12 h-12" />
+        </div>
+        <h1 className="text-3xl font-black text-slate-900 mb-2">Akses Ditolak</h1>
+        <p className="text-slate-500 max-w-md mx-auto mb-8">
+          Anda mencoba mengakses dokumen rahasia milik <strong className="text-slate-800">{data.asset.branch}</strong>. Sistem keamanan mencatat aktivitas ini.
+        </p>
+        <Link href="/assignments" className="px-6 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all">
+          Kembali ke Dashboard Saya
+        </Link>
+      </div>
+    );
+  }
 
   // Generate QR Code URL berdasarkan Asset Code
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${data.asset.asset_code}`;

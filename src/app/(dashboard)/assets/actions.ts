@@ -104,12 +104,23 @@ export async function createAsset(formData: FormData) {
 }
 
 // ==========================================
-// 2. UPDATE ASSET (FIXED REDIRECT BUG)
+// 2. UPDATE ASSET (FIXED REDIRECT BUG & SECURED)
 // ==========================================
 export async function updateAsset(id: number, formData: FormData) {
   const actor = await getActor();
 
   try {
+    // 🔥 FIREWALL LOGIC: Cek data aset sebelum diupdate
+    const existingAsset = await prisma.asset.findUnique({ where: { id } });
+    if (!existingAsset) return { success: false, error: "Aset tidak ditemukan." };
+    
+    // Cek apakah Admin yang beda cabang mencoba mengubah aset ini
+    if (actor.role !== "superadmin" && existingAsset.branch !== actor.branch) {
+      // Ubah SECURITY_ALERT jadi UPDATE
+      await recordLog("UPDATE", "ASSET", `[SECURITY ALERT] Akses Ilegal: Mencoba edit aset milik cabang ${existingAsset.branch}`, actor.name, actor.role);
+      return { success: false, error: "Akses Ditolak: Anda tidak memiliki wewenang untuk aset di cabang ini." };
+    }
+
     const updateData: any = {
       asset_name: formData.get("asset_name") as string,
       category_id: Number(formData.get("category_id")),
@@ -151,13 +162,20 @@ export async function updateAsset(id: number, formData: FormData) {
 }
 
 // ==========================================
-// 3. DELETE ASSET (PERMANEN)
+// 3. DELETE ASSET (PERMANEN & SECURED)
 // ==========================================
 export async function deleteAssetAction(id: number) {
   const actor = await getActor();
   try {
     const asset = await prisma.asset.findUnique({ where: { id } });
     if (!asset) return { success: false, message: "Aset tidak ditemukan." };
+
+    // 🔥 FIREWALL LOGIC: Proteksi Hapus Data Antar Cabang
+    if (actor.role !== "superadmin" && asset.branch !== actor.branch) {
+      // Ubah SECURITY_ALERT jadi DELETE
+      await recordLog("DELETE", "ASSET", `[SECURITY ALERT] Akses Ilegal: Mencoba hapus aset milik cabang ${asset.branch}`, actor.name, actor.role);
+      return { success: false, message: "Akses Ditolak: Aset ini terdaftar di cabang lain." };
+    }
 
     await prisma.asset.delete({ where: { id } });
     
@@ -172,11 +190,21 @@ export async function deleteAssetAction(id: number) {
 }
 
 // ==========================================
-// 4. DISPOSE ASSET
+// 4. DISPOSE ASSET (SECURED)
 // ==========================================
 export async function disposeAssetAction(id: number) {
   const actor = await getActor();
   try {
+    // 🔥 FIREWALL LOGIC: Proteksi Pindah Gudang/Disposal
+    const assetCheck = await prisma.asset.findUnique({ where: { id } });
+    if (!assetCheck) return { success: false, message: "Aset tidak ditemukan." };
+
+    if (actor.role !== "superadmin" && assetCheck.branch !== actor.branch) {
+      // Ubah SECURITY_ALERT jadi UPDATE
+      await recordLog("UPDATE", "ASSET", `[SECURITY ALERT] Akses Ilegal: Mencoba membuang aset cabang ${assetCheck.branch}`, actor.name, actor.role);
+      return { success: false, message: "Akses Ditolak: Tidak memiliki izin modifikasi cabang tersebut." };
+    }
+
     const asset = await prisma.asset.update({
       where: { id },
       data: { status: "Disposed" }

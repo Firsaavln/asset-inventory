@@ -2,21 +2,48 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { Plus, Laptop, Pencil, RotateCcw, User, Building2, Eye } from "lucide-react";
 import ExportAssignButton from "../../../components/ExportAssignButton"; 
-import Pagination from "@/components/Pagination"; // 👈 Import Pagination
+import Pagination from "@/components/Pagination"; 
 import { deleteAssignment } from "./actions";
+import { cookies } from "next/headers";
+import { decrypt } from "@/lib/auth";
 
 export default async function AssignmentsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
-  // Paginasi Config
+  // 🔥 1. AMBIL DATA USER DARI SESSION
+  const cookieStore = await cookies();
+  const token = cookieStore.get("session")?.value;
+  const payload = token ? await decrypt(token) : null;
+  const userRole = payload?.role as string;
+  const userBranch = payload?.branch as string;
+
+  // 🐛 DEBUGGING: Cek terminal VSCode Bapak untuk melihat hasil ini saat halaman direfresh!
+  console.log("=== DEBUG SESSION HANDOVER ===");
+  console.log("Role:", userRole);
+  console.log("Branch:", userBranch);
+  console.log("==============================");
+
   const resolvedParams = await searchParams;
   const currentPage = Number(resolvedParams?.page) || 1;
   const ITEMS_PER_PAGE = 10;
 
+  // 🔥 2. BUILD STRICT FIREWALL (FAIL-SAFE)
+  const whereClause: any = {};
+  
+  if (userRole !== "superadmin") {
+    // Jika bukan superadmin, WAJIB difilter berdasarkan cabang.
+    // Jika userBranch ternyata kosong (undefined), paksa cari cabang "UNKNOWN_BRANCH"
+    // agar data tidak bocor menampilkan semuanya.
+    whereClause.asset = {
+      branch: userBranch || "UNKNOWN_BRANCH"
+    };
+  }
+
   // Hitung total data
-  const totalItems = await prisma.assignment.count();
-  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+  const totalItems = await prisma.assignment.count({ where: whereClause });
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1; // Cegah NaN jika 0
 
   // Ambil data Paginasi
   const rawAssignments = await prisma.assignment.findMany({
+    where: whereClause,
     orderBy: { assign_date: "desc" },
     include: { asset: true },
     skip: (currentPage - 1) * ITEMS_PER_PAGE,
@@ -43,7 +70,12 @@ export default async function AssignmentsPage({ searchParams }: { searchParams: 
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Handover Management</h1>
-          <p className="text-slate-500 text-sm mt-1 font-medium italic">Monitoring distribusi aset PT Gree Appliances Indonesia.</p>
+          <div className="flex items-center gap-2 mt-1">
+             <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[10px] font-black uppercase tracking-widest border border-indigo-100 flex items-center gap-1">
+               <Building2 className="w-3 h-3" /> {userRole === "superadmin" ? "Semua Cabang (HO)" : (userBranch || "Cabang Tidak Diketahui")}
+             </span>
+             <p className="text-slate-500 text-sm font-medium italic">Monitoring distribusi aset.</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <ExportAssignButton data={activeAssignments} /> 
@@ -93,8 +125,7 @@ export default async function AssignmentsPage({ searchParams }: { searchParams: 
                       <Link href={`/assignments/${item.id}`} className="p-2.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-xl transition-all" title="View Details">
                         <Eye className="w-4 h-4" />
                       </Link>
-
-                      <Link href={`/assignments/${item.id}/edit`} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
+                      <Link href={`/assignments/${item.id}/edit`} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all" title="Edit Handover">
                         <Pencil className="w-4 h-4" />
                       </Link>
                       <form action={async () => {
@@ -107,12 +138,19 @@ export default async function AssignmentsPage({ searchParams }: { searchParams: 
                       </form>
                     </div>
                   </td>
-
-
                 </tr>
               ))}
             </tbody>
           </table>
+
+          {activeAssignments.length === 0 && (
+             <div className="p-20 text-center flex flex-col items-center justify-center space-y-3 border-t border-slate-50">
+               <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-300">
+                 <Laptop className="w-8 h-8" />
+               </div>
+               <p className="text-slate-500 font-bold text-sm">Belum ada data Handover di {userBranch || "cabang ini"}.</p>
+             </div>
+          )}
         </div>
         <Pagination totalPages={totalPages} currentPage={currentPage} />
       </div>
