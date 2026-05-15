@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { Plus, Laptop, Pencil, RotateCcw, User, Building2 } from "lucide-react";
+import { Plus, Laptop, Pencil, RotateCcw, User, Building2, Eye } from "lucide-react";
 import ExportAssignButton from "../../../components/ExportAssignButton"; 
 import Pagination from "@/components/Pagination"; // 👈 Import Pagination
 import { deleteAssignment } from "./actions";
@@ -90,6 +90,10 @@ export default async function AssignmentsPage({ searchParams }: { searchParams: 
                   </td>
                   <td className="px-8 py-6">
                     <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <Link href={`/assignments/${item.id}`} className="p-2.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-xl transition-all" title="View Details">
+                        <Eye className="w-4 h-4" />
+                      </Link>
+
                       <Link href={`/assignments/${item.id}/edit`} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
                         <Pencil className="w-4 h-4" />
                       </Link>
@@ -103,6 +107,8 @@ export default async function AssignmentsPage({ searchParams }: { searchParams: 
                       </form>
                     </div>
                   </td>
+
+
                 </tr>
               ))}
             </tbody>

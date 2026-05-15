@@ -1,25 +1,41 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { MANAGING_DIVISIONS } from "@/lib/constants";
 import { updateAsset } from "../../actions";
 import { 
   Box, Tags, Building2, Calendar, ShieldCheck, Image as ImageIcon, 
   AlignLeft, Save, Info, Loader2, Barcode, CreditCard, 
-  CheckCircle2, MapPin, Store, FileText, Check, Activity
+  CheckCircle2, MapPin, Store, FileText, Check, Activity, Lock
 } from "lucide-react";
 
 export default function EditAssetForm({ asset, categories }: { asset: any, categories: any[] }) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // State untuk Image & Invoice Preview (Default ngambil dari database)
+  // 🔥 STATE UNTUK OTOMATISASI & KONTROL INPUT
+  // Inisialisasi dengan fallback "" untuk mencegah error controlled/uncontrolled
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(
+    asset.category_id ? String(asset.category_id) : ""
+  );
+  const [autoDivision, setAutoDivision] = useState<string>(
+    asset.managing_division || ""
+  );
+
+  // State untuk Image & Invoice Preview
   const [imagePreview, setImagePreview] = useState<string | null>(asset.asset_image);
   const [invoiceName, setInvoiceName] = useState<string | null>(asset.invoice_file ? "Invoice Tersimpan" : null);
 
-  // Format tanggal untuk HTML input date (YYYY-MM-DD)
+  // 🔥 EFFECT: Update divisi otomatis saat kategori berubah
+  useEffect(() => {
+    const category = categories.find(c => String(c.id) === selectedCategoryId);
+    if (category) {
+      setAutoDivision(category.owner_dept || "");
+    }
+  }, [selectedCategoryId, categories]);
+
+  // Format tanggal untuk HTML input date
   const defaultPurchaseDate = asset.purchase_date ? new Date(asset.purchase_date).toISOString().split('T')[0] : "";
   const defaultWarrantyDate = asset.warranty_date ? new Date(asset.warranty_date).toISOString().split('T')[0] : "";
 
@@ -37,13 +53,13 @@ export default function EditAssetForm({ asset, categories }: { asset: any, categ
     e.preventDefault();
     setIsSubmitting(true);
     
-    const toastId = toast.loading("Menyimpan pembaruan data...");
+    const toastId = toast.loading("Menyiapkan pembaruan data...");
     const formData = new FormData(e.currentTarget);
 
     try {
       await updateAsset(asset.id, formData);
       toast.success("Aset Diperbarui!", { id: toastId, description: "Perubahan data berhasil disimpan." });
-      setTimeout(() => router.push(`/assets/${asset.id}`), 1000); // Redirect balik ke detail
+      setTimeout(() => router.push(`/assets/${asset.id}`), 1000);
     } catch (error) {
       toast.error("Gagal Memperbarui", { id: toastId, description: "Terjadi kesalahan pada sistem." });
       setIsSubmitting(false);
@@ -56,7 +72,6 @@ export default function EditAssetForm({ asset, categories }: { asset: any, categ
       {/* --- KOLOM KIRI (70%): DATA UTAMA & FINANSIAL --- */}
       <div className="lg:col-span-2 space-y-6 lg:space-y-8">
         
-        {/* BLOK 1: INFORMASI IDENTITAS (Aksen Amber untuk Edit) */}
         <div className="bg-white p-6 sm:p-8 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-amber-50 rounded-bl-full -z-10"></div>
           
@@ -73,14 +88,22 @@ export default function EditAssetForm({ asset, categories }: { asset: any, categ
               <input type="text" name="asset_name" defaultValue={asset.asset_name} required className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all font-medium text-slate-700" />
             </div>
 
+            {/* KATEGORI (Controlled) */}
             <div className="space-y-2.5">
               <label className="text-sm font-bold text-slate-700 ml-1 flex items-center gap-2">
                 <Tags className="w-4 h-4 text-amber-500" /> Kategori <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <select name="category_id" defaultValue={asset.category_id} required className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none font-medium text-slate-700 cursor-pointer appearance-none">
+                <select 
+                  name="category_id" 
+                  value={selectedCategoryId} 
+                  onChange={(e) => setSelectedCategoryId(e.target.value)}
+                  required 
+                  className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none font-medium text-slate-700 cursor-pointer appearance-none"
+                >
+                  <option value="">Pilih Kategori</option>
                   {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>{cat.category_name}</option>
+                    <option key={cat.id} value={String(cat.id)}>{cat.category_name}</option>
                   ))}
                 </select>
                 <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
@@ -89,18 +112,22 @@ export default function EditAssetForm({ asset, categories }: { asset: any, categ
               </div>
             </div>
 
+            {/* 🔥 DIVISI PENGELOLA (LOCKED & AUTOMATIC) */}
             <div className="space-y-2.5">
               <label className="text-sm font-bold text-slate-700 ml-1 flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-amber-500" /> Divisi Pengelola <span className="text-rose-500">*</span>
+                <Building2 className="w-4 h-4 text-amber-500" /> Divisi Pengelola (Otomatis)
               </label>
               <div className="relative">
-                <select name="managing_division" defaultValue={asset.managing_division} required className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none font-medium text-slate-700 cursor-pointer appearance-none">
-                  {MANAGING_DIVISIONS.map(div => (
-                    <option key={div.id} value={div.id}>{div.label}</option>
-                  ))}
-                </select>
+                <input 
+                  type="text" 
+                  value={autoDivision} 
+                  readOnly 
+                  className="w-full bg-slate-100 border border-slate-200 p-4 rounded-2xl font-bold text-slate-500 cursor-not-allowed outline-none" 
+                />
+                {/* Hidden input agar value managing_division tetap terkirim saat submit */}
+                <input type="hidden" name="managing_division" value={autoDivision} />
                 <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
-                  <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                  <Lock className="w-4 h-4 text-slate-300" />
                 </div>
               </div>
             </div>
@@ -112,7 +139,6 @@ export default function EditAssetForm({ asset, categories }: { asset: any, categ
               <input type="text" name="serial_number" defaultValue={asset.serial_number || ""} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all font-medium text-slate-700 uppercase" />
             </div>
 
-            {/* TAMBAHAN UNTUK EDIT: GANTI STATUS ASET */}
             <div className="space-y-2.5">
               <label className="text-sm font-bold text-slate-700 ml-1 flex items-center gap-2">
                 <Activity className="w-4 h-4 text-indigo-500" /> Status Aset
@@ -198,7 +224,6 @@ export default function EditAssetForm({ asset, categories }: { asset: any, categ
       {/* --- KOLOM KANAN (30%): MEDIA, TIMELINE & SUBMIT --- */}
       <div className="space-y-6 lg:space-y-8 flex flex-col">
         
-        {/* BLOK 3: MEDIA (FOTO & INVOICE) */}
         <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm space-y-6 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 rounded-bl-full -z-10"></div>
           
@@ -243,7 +268,6 @@ export default function EditAssetForm({ asset, categories }: { asset: any, categ
           </div>
         </div>
 
-        {/* BLOK 4: TIMELINE */}
         <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm space-y-5 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-bl-full -z-10"></div>
           
@@ -262,7 +286,6 @@ export default function EditAssetForm({ asset, categories }: { asset: any, categ
           </div>
         </div>
 
-        {/* TOMBOL SUBMIT */}
         <button type="submit" disabled={isSubmitting} className="w-full flex items-center justify-center gap-3 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-400 text-white px-6 py-5 rounded-[1.5rem] font-bold shadow-xl shadow-amber-200 transition-all active:scale-95 group">
           {isSubmitting ? (
             <><Loader2 className="w-5 h-5 animate-spin" /> Menyimpan Perubahan...</>

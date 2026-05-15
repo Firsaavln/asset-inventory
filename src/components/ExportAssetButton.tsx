@@ -20,30 +20,41 @@ export default function ExportAssetButton() {
       const cat = searchParams.get("category") || undefined;
       const loc = searchParams.get("location") || undefined;
 
+      // 1. Ambil data dari server
       const rawData = await getAssetsForExport(q, cat, loc);
 
-      const formattedData = rawData.map((item, index) => ({
+      // 2. Mapping data (Gunakan type 'any' pada item untuk menghilangkan merah dengan cepat)
+      // Pastikan menggunakan optional chaining (?.) untuk menghindari error null pada category
+      const formattedData = rawData.map((item: any, index: number) => ({
         "No": index + 1,
         "Kode Aset": item.asset_code,
         "Nama Aset": item.asset_name,
-        "Kategori": item.category.category_name,
+        "Kategori": item.category?.category_name || "-",
         "S/N": item.serial_number || "-",
         "Kondisi": item.condition,
-        "Lokasi/Branch": item.location || "-",
+        "Lokasi": item.location || "-",
+        "Cabang": item.branch || "-",
         "Status": item.status,
         "Divisi Pengelola": item.managing_division,
-        "Harga (IDR)": Number(item.price), // Format angkanya di Excel
+        "Harga (IDR)": item.price, 
         "Vendor": item.vendor_name || "-",
-        "Tgl Beli": new Date(item.purchase_date).toLocaleDateString('id-ID')
+        "Tgl Beli": item.purchase_date ? new Date(item.purchase_date).toLocaleDateString('id-ID') : "-",
+        "Warranty": item.warranty_date ? new Date(item.warranty_date).toLocaleDateString('id-ID') : "-",
+        "Link Foto": item.asset_image || "-",
+        "Link Invoice": item.invoice_file || "-",
+        "Deskripsi": item.description || "-"
       }));
 
+      // 3. Proses Excel
       const worksheet = XLSX.utils.json_to_sheet(formattedData);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Data Aset");
 
       XLSX.writeFile(workbook, `Laporan_Aset_${new Date().toISOString().split('T')[0]}.xlsx`);
+      
       toast.success("Berhasil Export!", { id: toastId });
     } catch (error) {
+      console.error(error);
       toast.error("Gagal Export", { id: toastId });
     } finally {
       setIsExporting(false);

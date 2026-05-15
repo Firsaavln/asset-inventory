@@ -1,29 +1,47 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { MANAGING_DIVISIONS } from "@/lib/constants"; // Mengambil divisi secara dinamis
+// Kita tetap import ini untuk mapping label jika diperlukan, 
+// tapi data utama akan diambil dari object Category
+import { MANAGING_DIVISIONS } from "@/lib/constants"; 
 import { 
   Box, Tags, Building2, Calendar, 
   ShieldCheck, Image as ImageIcon, AlignLeft, 
   Plus, Save, Info, Loader2, Barcode, 
-  CreditCard, CheckCircle2, MapPin, Store, FileText, Check
+  CreditCard, CheckCircle2, MapPin, Store, FileText, Check, Lock
 } from "lucide-react";
 import { createAsset } from "../actions";
 
+// 🔥 UPDATE: Tambahkan owner_dept ke interface agar data divisi terbawa
 interface Category {
   id: number | string;
   category_name: string;
+  owner_dept: string; // Diambil dari table category (misal: IT, GA, HR)
 }
 
 export default function AssetForm({ initialCategories }: { initialCategories: Category[] }) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // 🔥 STATE BARU: Untuk melacak kategori yang dipilih
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [autoDivision, setAutoDivision] = useState<string>("");
+
   // State untuk Image Preview & Invoice Preview
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [invoiceName, setInvoiceName] = useState<string | null>(null);
+
+  // 🔥 EFFECT: Otomatis update divisi saat kategori berubah
+  useEffect(() => {
+    const category = initialCategories.find(c => String(c.id) === selectedCategoryId);
+    if (category) {
+      setAutoDivision(category.owner_dept);
+    } else {
+      setAutoDivision("");
+    }
+  }, [selectedCategoryId, initialCategories]);
 
   // Handler Preview Gambar
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,7 +72,6 @@ export default function AssetForm({ initialCategories }: { initialCategories: Ca
         description: "Data aset dan file lampiran telah tersimpan di sistem.",
       });
 
-      // Redirect mulus ke halaman daftar aset
       setTimeout(() => router.push("/assets"), 1000);
       
     } catch (error) {
@@ -72,7 +89,6 @@ export default function AssetForm({ initialCategories }: { initialCategories: Ca
       {/* --- KOLOM KIRI (70%): DATA UTAMA & FINANSIAL --- */}
       <div className="lg:col-span-2 space-y-6 lg:space-y-8">
         
-        {/* BLOK 1: INFORMASI IDENTITAS */}
         <div className="bg-white p-6 sm:p-8 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-bl-full -z-10"></div>
           
@@ -89,12 +105,19 @@ export default function AssetForm({ initialCategories }: { initialCategories: Ca
               <input type="text" name="asset_name" required placeholder="Contoh: Dell Latitude 7420 Core i7" className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all font-medium text-slate-700" />
             </div>
 
+            {/* KATEGORI */}
             <div className="space-y-2.5">
               <label className="text-sm font-bold text-slate-700 ml-1 flex items-center gap-2">
                 <Tags className="w-4 h-4 text-indigo-500" /> Kategori <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <select name="category_id" required className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-medium text-slate-700 cursor-pointer appearance-none">
+                <select 
+                  name="category_id" 
+                  required 
+                  value={selectedCategoryId}
+                  onChange={(e) => setSelectedCategoryId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-medium text-slate-700 cursor-pointer appearance-none"
+                >
                   <option value="">Pilih Kategori</option>
                   {initialCategories.map((cat) => (
                     <option key={cat.id} value={cat.id}>{cat.category_name}</option>
@@ -106,20 +129,22 @@ export default function AssetForm({ initialCategories }: { initialCategories: Ca
               </div>
             </div>
 
+            {/* 🔥 DIVISI PENGELOLA (OTOMATIS & LOCKED) */}
             <div className="space-y-2.5">
               <label className="text-sm font-bold text-slate-700 ml-1 flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-indigo-500" /> Divisi Pengelola <span className="text-rose-500">*</span>
+                <Building2 className="w-4 h-4 text-indigo-500" /> Divisi Pengelola (Otomatis)
               </label>
               <div className="relative">
-                <select name="managing_division" required className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-medium text-slate-700 cursor-pointer appearance-none">
-                  <option value="">Pilih Divisi</option>
-                  {/* BUGS FIXED: Menggunakan data constants agar sinkron */}
-                  {MANAGING_DIVISIONS.map(div => (
-                    <option key={div.id} value={div.id}>{div.label}</option>
-                  ))}
-                </select>
+                <input 
+                  type="text" 
+                  value={autoDivision || "Pilih kategori dulu..."} 
+                  readOnly 
+                  className="w-full bg-slate-100 border border-slate-200 p-4 rounded-2xl font-bold text-slate-500 cursor-not-allowed outline-none"
+                />
+                {/* Kita kirim value aslinya lewat hidden input agar terbaca di createAsset */}
+                <input type="hidden" name="managing_division" value={autoDivision} />
                 <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
-                  <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                  <Lock className="w-4 h-4 text-slate-300" />
                 </div>
               </div>
             </div>
@@ -203,7 +228,6 @@ export default function AssetForm({ initialCategories }: { initialCategories: Ca
         <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm space-y-6 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 rounded-bl-full -z-10"></div>
           
-          {/* Upload Foto Fisik dengan Preview */}
           <div>
             <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
               <ImageIcon className="w-4 h-4 text-indigo-500" /> Foto Fisik Aset
@@ -224,7 +248,6 @@ export default function AssetForm({ initialCategories }: { initialCategories: Ca
             </div>
           </div>
 
-          {/* Upload Invoice dengan Indikator */}
           <div className="pt-6 border-t border-slate-100">
             <h2 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
               <FileText className="w-4 h-4 text-emerald-500" /> Invoice / Nota
@@ -248,7 +271,6 @@ export default function AssetForm({ initialCategories }: { initialCategories: Ca
           </div>
         </div>
 
-        {/* BLOK 4: TIMELINE */}
         <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm space-y-5 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-bl-full -z-10"></div>
           
@@ -267,7 +289,6 @@ export default function AssetForm({ initialCategories }: { initialCategories: Ca
           </div>
         </div>
 
-        {/* TOMBOL SUBMIT */}
         <button type="submit" disabled={isSubmitting} className="w-full flex items-center justify-center gap-3 bg-slate-900 hover:bg-indigo-600 disabled:bg-slate-400 text-white px-6 py-5 rounded-[1.5rem] font-bold shadow-xl shadow-slate-200 hover:shadow-indigo-200 transition-all active:scale-95 group">
           {isSubmitting ? (
             <><Loader2 className="w-5 h-5 animate-spin" /> Menyimpan & Uploading...</>

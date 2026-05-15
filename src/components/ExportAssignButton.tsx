@@ -11,6 +11,20 @@ export default function ExportAssignButton({ data }: { data: any[] }) {
       "PIC Name": assign.borrower_name,
       "Department": assign.department,
       "Date": new Date(assign.assign_date).toLocaleDateString("id-ID"),
+      "Kategori": assign.asset.category?.category_name || "-",
+        "S/N": assign.asset.serial_number || "-",
+        "Kondisi": assign.asset.condition,
+        "Lokasi": assign.asset.location || "-",
+        "Cabang": assign.asset.branch || "-",
+        "Status": assign.asset.status,
+        "Divisi Pengelola": assign.asset.managing_division,
+        "Harga (IDR)": assign.asset.price, 
+        "Vendor": assign.asset.vendor_name || "-",
+        "Tgl Beli": assign.asset.purchase_date ? new Date(assign.asset.purchase_date).toLocaleDateString('id-ID') : "-",
+        "Warranty": assign.asset.warranty_date ? new Date(assign.asset.warranty_date).toLocaleDateString('id-ID') : "-",
+        "Link Foto": assign.asset.asset_image || "-",
+        "Link Invoice": assign.asset.invoice_file || "-",
+        "Deskripsi": assign.asset.description || "-"
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(worksheetData);

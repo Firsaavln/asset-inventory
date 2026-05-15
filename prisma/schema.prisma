@@ -26,6 +26,8 @@ model Asset {
   id                Int       @id @default(autoincrement())
   asset_code        String    @unique // Kode otomatis (misal: IT-LAP-001)
   asset_name        String
+
+  branch            String   @default("HO - Head Office")
   
   // Relasi Kategori
   category_id       Int
