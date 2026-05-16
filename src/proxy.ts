@@ -4,7 +4,6 @@ import { decrypt } from "@/lib/auth";
 // Daftar halaman utama aplikasi kita
 const protectedRoutes = ["/", "/assets", "/categories", "/assignments", "/disposals", "/users", "/logs"];
 
-// 👇 UBAH DI SINI: Nama function diganti menjadi "proxy" atau jadikan default export
 export default async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
   const sessionToken = req.cookies.get("session")?.value;
@@ -29,7 +28,8 @@ export default async function proxy(req: NextRequest) {
       return NextResponse.redirect(new URL("/login", req.url));
     }
 
-    const role = payload.role as string;
+    // 🔥 OPTIMASI: Paksa ke lowercase agar kebal dari salah ketik kapital di database
+    const role = String(payload.role).toLowerCase(); 
 
     // --- ATURAN ADMIN ---
     if (role === "admin") {
@@ -38,9 +38,15 @@ export default async function proxy(req: NextRequest) {
       }
     }
 
-    // --- ATURAN USER BIASA ---
+    // --- 🔥 ATURAN USER BIASA (REVISI: LOLOSKAN READ-ONLY) ---
     if (role === "user") {
-      const isAllowed = path === "/" || path.startsWith("/assets");
+      const isAllowed = 
+        path === "/" || 
+        path.startsWith("/assets") ||
+        path.startsWith("/categories") ||
+        path.startsWith("/assignments") ||
+        path.startsWith("/disposals");
+
       if (!isAllowed) {
         return NextResponse.redirect(new URL("/", req.url));
       }

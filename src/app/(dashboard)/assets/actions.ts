@@ -44,7 +44,7 @@ const handleFileUpload = async (formData: FormData, fileKey: string) => {
 };
 
 // ==========================================
-// 1. CREATE ASSET (FIREWALL & SUPERADMIN SUPPORT)
+// 1. CREATE ASSET (FIREWALL & REVISED KODE ENGINES)
 // ==========================================
 export async function createAsset(formData: FormData) {
   const actor = await getActor();
@@ -63,9 +63,7 @@ export async function createAsset(formData: FormData) {
     const warranty_date_raw = formData.get("warranty_date") as string;
     const warranty_date = warranty_date_raw ? new Date(warranty_date_raw) : null;
 
-    // 🔥 LOGIKA CABANG:
-    // Jika Superadmin, ambil input cabang dari form (jika ada), kalau tidak ada pakai cabang default superadmin.
-    // Jika Admin biasa, paksa gunakan cabang tempat dia bertugas (actor.branch).
+    // Logika penentuan Cabang Aset
     const branchInput = formData.get("branch") as string;
     const isSuperAdmin = actor.role.toLowerCase() === "superadmin";
     const finalBranch = isSuperAdmin && branchInput ? branchInput : actor.branch;
@@ -73,8 +71,51 @@ export async function createAsset(formData: FormData) {
     const asset_image = await handleFileUpload(formData, "asset_image");
     const invoice_file = await handleFileUpload(formData, "invoice_file");
 
-    const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const asset_code = `AST-${new Date().getFullYear()}-${randomStr}`;
+    // ====================================================================
+    // 🔥 STRATEGI GENERATE KODE ASET REVISI (DEPAN - TENGAH - BELAKANG)
+    // ====================================================================
+    
+    // 1. Bersihkan Nama Cabang dari spasi & simbol, paksa huruf besar
+    const branchClean = finalBranch.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    let branchCode = "";
+
+    if (branchClean.length >= 3) {
+      const firstLetter = branchClean.charAt(0); // Huruf Depan
+      const middleLetter = branchClean.charAt(Math.floor(branchClean.length / 2)); // Huruf Tengah
+      const lastLetter = branchClean.charAt(branchClean.length - 1); // Huruf Belakang
+      branchCode = `${firstLetter}${middleLetter}${lastLetter}`;
+    } else {
+      // Proteksi fallback jika nama cabang sangat pendek di bawah 3 huruf (misal: "HO")
+      branchCode = branchClean.padEnd(3, "X").substring(0, 3);
+    }
+
+    // 2. Ambil 3 Huruf Kode Kategori dari database (Ambil 3 huruf depan)
+    const category = await prisma.category.findUnique({
+      where: { id: category_id },
+      select: { category_name: true }
+    });
+    const categoryNameClean = category?.category_name ? category.category_name.replace(/[^a-zA-Z0-9]/g, "") : "AST";
+    const categoryCode = categoryNameClean.substring(0, 3).toUpperCase().padEnd(3, "X");
+
+    // 3. Kombinasi Angka Bulan & Tahun Cetak (Format: MMYYYY)
+    const now = new Date();
+    const monthStr = String(now.getMonth() + 1).padStart(2, "0");
+    const yearStr = String(now.getFullYear());
+    const dateCode = `${monthStr}${yearStr}`;
+
+    // 4. Kalkulasi Urutan Sequence Number (Berdasarkan Cabang + Kategori yang sama)
+    const assetCount = await prisma.asset.count({
+      where: {
+        branch: finalBranch,
+        category_id: category_id
+      }
+    });
+    const sequenceStr = String(assetCount + 1).padStart(4, "0");
+
+    // 5. Satukan Menjadi Kode Unik Aset Kontrol Baru
+    const asset_code = `${branchCode}-${categoryCode}-${dateCode}-${sequenceStr}`;
+    
+    // ====================================================================
 
     await prisma.asset.create({
       data: {
@@ -85,7 +126,7 @@ export async function createAsset(formData: FormData) {
         serial_number,
         condition,
         location,
-        branch: finalBranch, // 👈 Disematkan secara dinamis dan aman
+        branch: finalBranch, 
         price: Number(price),
         vendor_name,
         description,

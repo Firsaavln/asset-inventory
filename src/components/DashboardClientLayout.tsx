@@ -39,20 +39,24 @@ export default function DashboardClientLayout({ children, user }: UserProps) {
     { name: "System Logs", href: "/logs", icon: ShieldAlert },
   ];
 
-  // RBAC SIDEBAR FILTERING
+  // ====================================================================
+  // 🔥 REVISI RBAC SIDEBAR FILTERING (Membuka Akses Menu untuk Role User)
+  // ====================================================================
   const menuItems = allMenuItems.filter((item) => {
-    if (user.role === "superadmin") return true; 
+    const roleLower = user.role?.toLowerCase();
+
+    // 1. Jika Superadmin, buka seluruh akses menu tanpa terkecuali
+    if (roleLower === "superadmin") return true; 
     
-    if (user.role === "admin") {
+    // 2. Jika Admin ATAU User Biasa (Read-Only), izinkan melihat seluruh menu operasional
+    if (roleLower === "admin" || roleLower === "user") {
+      // Sembunyikan menu Manajemen Akun dan System Logs dari kedua peran ini
       return !["Manajemen Akun", "System Logs"].includes(item.name);
-    }
-    
-    if (user.role === "user") {
-      return ["Dashboard", "Data Aset"].includes(item.name);
     }
     
     return false;
   });
+  // ====================================================================
 
   const initials = user.name ? user.name.charAt(0).toUpperCase() : "U";
   const currentYear = new Date().getFullYear();
@@ -71,7 +75,7 @@ export default function DashboardClientLayout({ children, user }: UserProps) {
         <div className="flex flex-col overflow-hidden flex-1">
           <div className="h-20 flex items-center px-6 justify-between shrink-0 border-b border-slate-100/50">
             <div className="flex items-center gap-3 select-none w-full">
-              {/* 🔥 LOGO PNG DI-BESARKAN & RESPONSIVE */}
+              {/* LOGO PNG DI-BESARKAN & RESPONSIVE */}
               <img 
                 src="/logo.png" 
                 alt="Asset Portal Logo" 
@@ -102,7 +106,7 @@ export default function DashboardClientLayout({ children, user }: UserProps) {
 
         {/* Mini Footer Sidebar */}
         <div className="p-4 border-t border-slate-100 shrink-0 bg-slate-50/50 hidden lg:block">
-          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center">IT Departement • Production Mode</p>
+          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center">IT Departement • Asset Portal</p>
         </div>
       </aside>
 
@@ -116,7 +120,7 @@ export default function DashboardClientLayout({ children, user }: UserProps) {
           <div className="flex items-center gap-4 sm:gap-6 ml-auto">
             <div className="hidden sm:flex flex-col items-end text-right">
                <p className="text-[11px] sm:text-xs font-black text-slate-800 tracking-tight flex items-center gap-1.5">
-                 {user.branch || "PT Gree Electric"} <Building2 className="w-3.5 h-3.5 text-indigo-500" />
+                 {user.branch || "PT GEAI"} <Building2 className="w-3.5 h-3.5 text-indigo-500" />
                </p>
             </div>
 
@@ -153,15 +157,15 @@ export default function DashboardClientLayout({ children, user }: UserProps) {
           </div>
         </header>
 
-        {/* 🔥 MAIN ENGINE SCROLL: Mengunci viewport utama untuk scroll lancar */}
+        {/* MAIN ENGINE SCROLL */}
         <main className="flex-1 overflow-y-auto p-0 md:p-4 bg-slate-50/50 flex flex-col justify-between">
           
-          {/* 🔥 SOLUSI SCROLL CHOKING: Mengganti overflow-hidden menjadi overflow-visible */}
+          {/* SOLUSI SCROLL CHOKING */}
           <div className="w-full rounded-none md:rounded-[2rem] md:border border-slate-200 bg-slate-50 md:bg-transparent overflow-visible">
             {children}
           </div>
 
-          {/* 🔥 FOOTER UTAMA PERUSAHAAN (Sits safely underneath the contents) */}
+          {/* FOOTER UTAMA PERUSAHAAN */}
           <footer className="py-6 mt-8 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] shrink-0 border-t border-slate-200/20 md:border-t-0">
             © {currentYear} PT GREE ELECTRIC APPLIANCES INDONESIA
           </footer>

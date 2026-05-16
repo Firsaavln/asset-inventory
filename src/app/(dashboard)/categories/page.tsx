@@ -21,7 +21,7 @@ import ExportCategoryButton from "@/components/ExportCategoryButton";
 import Pagination from "@/components/Pagination"; 
 import { MANAGING_DIVISIONS } from "@/lib/constants"; 
 
-// --- SERVER ACTION (Dilengkapi Inline Firewall) ---
+// --- SERVER ACTION (Dilengkapi Inline Firewall & Read-Only Protection) ---
 async function deleteCategory(formData: FormData) {
   "use server";
   const id = formData.get("id") as string;
@@ -31,11 +31,20 @@ async function deleteCategory(formData: FormData) {
       const cookieStore = await cookies();
       const token = cookieStore.get("session")?.value;
       const payload = token ? await decrypt(token) : null;
-      const isSuperAdmin = payload?.role?.toLowerCase() === "superadmin";
+      
+      const roleLower = payload?.role?.toLowerCase();
+      const isSuperAdmin = roleLower === "superadmin";
+      const isReadOnlyUser = roleLower === "user";
+
+      // 🔥 ABSOLUTE FIREWALL: Read-Only User dilarang keras memodifikasi data!
+      if (isReadOnlyUser) {
+         console.error("Akses Ditolak: Read-Only Role mencoba melakukan bypass penghapusan.");
+         return; 
+      }
 
       const existing = await prisma.category.findUnique({ where: { id: Number(id) } });
       
-      // 🔥 FIREWALL SECURITY CHECK
+      // 🔥 IDOR FIREWALL SECURITY CHECK: Cegah admin hapus kategori cabang lain
       if (existing && !isSuperAdmin && existing.branch !== payload?.branch) {
          console.error("Akses Ditolak: Mencoba menghapus data dari luar cabang authorization.");
          return; 
@@ -60,6 +69,7 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
   const userBranch = payload?.branch as string;
   
   const isSuperAdmin = userRole?.toLowerCase() === "superadmin";
+  const isReadOnlyUser = userRole?.toLowerCase() === "user"; // 👈 Flag untuk UI Read-Only
 
   // Paginasi Config
   const resolvedParams = await searchParams;
@@ -95,9 +105,10 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
   };
 
   return (
-    <div className="p-6 md:p-10 max-w-6xl mx-auto space-y-8">
-      {/* HEADER SECTION */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden">
+    <div className="p-4 sm:p-6 md:p-10 max-w-6xl mx-auto space-y-8">
+      
+      {/* --- HEADER SECTION (RESPONSIVE OPTIMIZED) --- */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden">
         <div className="absolute -top-10 -right-10 w-40 h-40 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-full blur-2xl -z-10"></div>
         <div className="flex items-center gap-4">
           <div className="p-4 bg-gradient-to-br from-indigo-500 to-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-200 hidden sm:block">
@@ -113,24 +124,33 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+
+        {/* WADAH TOMBOL AKSES - FLEKSIBEL DI MOBILE & DESKTOP */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto shrink-0 relative z-10">
           <ExportCategoryButton />
-          <Link href="/categories/add" className="flex items-center justify-center gap-2 bg-slate-900 hover:bg-indigo-600 text-white px-6 py-4 rounded-2xl font-bold shadow-lg shadow-slate-200 hover:shadow-indigo-200 transition-all duration-300 active:scale-95 whitespace-nowrap">
-            <Plus className="w-5 h-5" /> Kategori Baru
-          </Link>
+          
+          {/* 🔥 PROTEKSI UI: Sembunyikan Tombol Add jika Read-Only User */}
+          {!isReadOnlyUser && (
+            <Link 
+              href="/categories/add" 
+              className="flex items-center justify-center gap-2 bg-slate-900 hover:bg-indigo-600 text-white px-5 py-3.5 sm:px-6 sm:py-4 rounded-2xl font-bold shadow-lg shadow-slate-200 hover:shadow-indigo-200 transition-all duration-300 active:scale-95 whitespace-nowrap text-sm sm:text-base"
+            >
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5" /> Kategori Baru
+            </Link>
+          )}
         </div>
       </div>
 
-      {/* TABLE SECTION */}
+      {/* --- TABLE SECTION --- */}
       <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-        <div className="overflow-x-auto flex-1">
+        <div className="overflow-x-auto custom-scrollbar flex-1">
           <table className="min-w-full text-left border-collapse">
             <thead className="bg-slate-50/80 border-b border-slate-100">
               <tr>
-                <th className="px-8 py-5 text-xs font-extrabold text-slate-500 uppercase tracking-widest">Nama Kategori</th>
-                <th className="px-8 py-5 text-xs font-extrabold text-slate-500 uppercase tracking-widest">Divisi Pengelola</th>
-                <th className="px-8 py-5 text-xs font-extrabold text-slate-500 uppercase tracking-widest">Tgl. Dibuat</th>
-                <th className="px-8 py-5 text-xs font-extrabold text-slate-500 uppercase tracking-widest text-right">Aksi</th>
+                <th className="px-6 sm:px-8 py-5 text-xs font-extrabold text-slate-500 uppercase tracking-widest whitespace-nowrap">Nama Kategori</th>
+                <th className="px-6 sm:px-8 py-5 text-xs font-extrabold text-slate-500 uppercase tracking-widest whitespace-nowrap">Divisi Pengelola</th>
+                <th className="px-6 sm:px-8 py-5 text-xs font-extrabold text-slate-500 uppercase tracking-widest whitespace-nowrap">Tgl. Dibuat</th>
+                <th className="px-6 sm:px-8 py-5 text-xs font-extrabold text-slate-500 uppercase tracking-widest text-right whitespace-nowrap">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -138,45 +158,59 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
                 const style = getDeptStyles(cat.owner_dept);
                 return (
                 <tr key={cat.id} className="hover:bg-indigo-50/30 transition-colors group">
-                  <td className="px-8 py-5">
+                  <td className="px-6 sm:px-8 py-5">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-slate-100 rounded-lg text-slate-400 group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors">
+                      <div className="p-2 bg-slate-100 rounded-lg text-slate-400 group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors shrink-0">
                         <FolderTree className="w-4 h-4" />
                       </div>
-                      <span className="text-sm font-bold text-slate-800">{cat.category_name}</span>
+                      <span className="text-sm font-bold text-slate-800 whitespace-nowrap sm:whitespace-normal">{cat.category_name}</span>
                     </div>
                   </td>
-                  <td className="px-8 py-5">
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border ${style.color}`}>
+                  <td className="px-6 sm:px-8 py-5">
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border whitespace-nowrap ${style.color}`}>
                       {style.icon} {style.label}
                     </span>
                   </td>
-                  <td className="px-8 py-5 text-sm font-medium text-slate-500">
+                  <td className="px-6 sm:px-8 py-5 text-sm font-medium text-slate-500 whitespace-nowrap">
                     {cat.created_at.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </td>
-                  <td className="px-8 py-5 text-right">
-                    <div className="flex items-center justify-end gap-3">
-                      <Link href={`/categories/${cat.id}/edit`} className="p-2.5 text-indigo-500 bg-indigo-50 hover:text-white hover:bg-indigo-600 rounded-xl transition-all duration-300 shadow-sm hover:shadow-indigo-200 active:scale-95" title="Edit Kategori">
-                        <Pencil className="w-4 h-4" />
-                      </Link>
-                      <DeleteCategoryButton id={cat.id} categoryName={cat.category_name} />
-                    </div>
+                  
+                  {/* 🔥 AKSI KONTROL DATA (Dilindungi UI Read-Only) */}
+                  <td className="px-6 sm:px-8 py-5 text-right">
+                    {!isReadOnlyUser ? (
+                      <div className="flex items-center justify-end gap-2 sm:gap-3 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-300">
+                        <Link href={`/categories/${cat.id}/edit`} className="p-2 sm:p-2.5 text-indigo-500 bg-indigo-50 hover:text-white hover:bg-indigo-600 rounded-lg sm:rounded-xl transition-all duration-300 shadow-sm hover:shadow-indigo-200 active:scale-95" title="Edit Kategori">
+                          <Pencil className="w-4 h-4 sm:w-4 sm:h-4" />
+                        </Link>
+                        <form action={deleteCategory}>
+                          <input type="hidden" name="id" value={cat.id} />
+                          <DeleteCategoryButton id={cat.id} categoryName={cat.category_name} />
+                        </form>
+                      </div>
+                    ) : (
+                      <span className="text-xs font-black text-slate-300 tracking-widest px-3">—</span>
+                    )}
                   </td>
                 </tr>
               )})}
 
+              {/* EMPTY STATE */}
               {categories.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-8 py-20 text-center">
+                  <td colSpan={4} className="px-6 sm:px-8 py-16 sm:py-20 text-center">
                     <div className="flex flex-col items-center justify-center max-w-sm mx-auto">
-                      <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-4">
-                        <FolderTree className="w-10 h-10 text-indigo-300" />
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-4">
+                        <FolderTree className="w-8 h-8 sm:w-10 sm:h-10 text-indigo-300" />
                       </div>
-                      <p className="text-slate-900 font-bold text-xl mb-1">Kategori Masih Kosong</p>
-                      <p className="text-slate-500 font-medium text-sm mb-6">Belum ada kategori terdaftar untuk {isSuperAdmin ? "seluruh cabang" : userBranch}.</p>
-                      <Link href="/categories/add" className="flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-6 py-3 rounded-xl font-bold transition-all">
-                        <Plus className="w-4 h-4" /> Buat Kategori Pertama
-                      </Link>
+                      <p className="text-slate-900 font-bold text-lg sm:text-xl mb-1">Kategori Masih Kosong</p>
+                      <p className="text-slate-500 font-medium text-xs sm:text-sm mb-6">Belum ada kategori terdaftar untuk {isSuperAdmin ? "seluruh cabang" : userBranch}.</p>
+                      
+                      {/* 🔥 Sembunyikan prompt tambah data jika dia Read-Only */}
+                      {!isReadOnlyUser && (
+                        <Link href="/categories/add" className="flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-6 py-3 rounded-xl font-bold transition-all text-sm sm:text-base">
+                          <Plus className="w-4 h-4 sm:w-5 sm:h-5" /> Buat Kategori Pertama
+                        </Link>
+                      )}
                     </div>
                   </td>
                 </tr>

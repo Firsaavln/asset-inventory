@@ -3,10 +3,30 @@ import { updateUser } from "../../actions";
 import Link from "next/link";
 import { ArrowLeft, UserCog, Shield, Building2 } from "lucide-react";
 import { BRANCHES } from "@/lib/constants"; 
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation"; // 👈 Tambah 'notFound' untuk pengamanan
+import { cookies } from "next/headers"; // 👈 Tambahan untuk membaca session cookie
+import { decrypt } from "@/lib/auth";   // 👈 Tambahan untuk membaca payload data user
+
+export const dynamic = "force-dynamic";
 
 // Perbaikan: Definisi params untuk Next.js 15 harus dibungkus Promise
 export default async function EditUserPage({ params }: { params: Promise<{ id: string }> }) {
+  // 🔥 1. AMBIL SESSION LOGIN UNTUK FIREWALL SECURED ENGINE
+  const cookieStore = await cookies();
+  const token = cookieStore.get("session")?.value;
+  const payload = token ? await decrypt(token) : null;
+
+  if (!payload) redirect("/login");
+
+  const actorRole = (payload.role as string).toLowerCase();
+  const actorBranch = payload.branch as string;
+
+  // 🔥 2. HAK AKSES READ-ONLY PROTECTION
+  // Akun ber-role 'user' dilarang keras masuk ke area manajemen konfigurasi user!
+  if (actorRole === "user") {
+    notFound();
+  }
+
   const resolvedParams = await params;
   
   // Perbaikan: Konversi ID ke Number karena database Anda Integer
@@ -23,7 +43,16 @@ export default async function EditUserPage({ params }: { params: Promise<{ id: s
   });
 
   if (!user) {
-    redirect("/users");
+    notFound(); // Menggunakan 404 jauh lebih aman agar hacker bingung tebak ID akun
+  }
+
+  // 🔥 3. SECURITY FIREWALL IDOR PROTEKSI (KONTROL WILAYAH ADMIN)
+  // Jika dia Admin biasa, dia hanya bisa mengedit user di cabangnya sendiri.
+  // Dan Admin biasa dilarang keras mengubah profil milik seorang Superadmin!
+  if (actorRole === "admin") {
+    if (user.branch !== actorBranch || user.role.toLowerCase() === "superadmin") {
+      notFound();
+    }
   }
 
   return (

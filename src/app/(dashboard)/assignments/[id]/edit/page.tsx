@@ -1,10 +1,30 @@
 import { prisma } from "@/lib/prisma";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Box } from "lucide-react";
-import EditAssignmentForm from "./EditAssignmentForm"; // 👈 Kita buat komponen ini
+import EditAssignmentForm from "./EditAssignmentForm"; 
+import { cookies } from "next/headers"; // 👈 Tambahan Session Reader
+import { decrypt } from "@/lib/auth";   // 👈 Tambahan Decrypt Engine
+
+export const dynamic = "force-dynamic";
 
 export default async function EditAssignmentPage({ params }: { params: Promise<{ id: string }> }) {
+  // 🔥 1. AMBIL SESSION LOGIN UNTUK FIREWALL PROTEKSI
+  const cookieStore = await cookies();
+  const token = cookieStore.get("session")?.value;
+  const payload = token ? await decrypt(token) : null;
+
+  if (!payload) redirect("/login");
+
+  const userRole = (payload.role as string).toLowerCase();
+  const userBranch = payload.branch as string;
+
+  // 🔥 2. HAK AKSES READ-ONLY PROTECTION
+  // Akun ber-role 'user' dilarang keras memodifikasi transaksi data
+  if (userRole === "user") {
+    notFound();
+  }
+
   const resolvedParams = await params;
   const id = parseInt(resolvedParams.id);
 
@@ -14,6 +34,15 @@ export default async function EditAssignmentPage({ params }: { params: Promise<{
   });
 
   if (!assignment) notFound();
+
+  // 🔥 3. SECURITY FIREWALL IDOR: Deteksi manipulasi URL cabang luar HO
+  if (userRole !== "superadmin" && assignment.asset.branch !== userBranch) {
+    notFound();
+  }
+
+  // --- PROSES SERIALIZATION ---
+  // Konversi objek tanggal dan angka Decimal murni menjadi plain text/number agar didukung Client Form
+  const serializedAssignment = JSON.parse(JSON.stringify(assignment));
 
   return (
     <div className="p-6 lg:p-10 max-w-3xl mx-auto space-y-8">
@@ -32,14 +61,14 @@ export default async function EditAssignmentPage({ params }: { params: Promise<{
               <Box className="w-6 h-6" />
            </div>
            <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Informasi Unit</p>
-              <p className="text-sm font-bold text-slate-800">{assignment.asset.asset_name}</p>
-              <p className="text-[10px] font-bold text-indigo-500 font-mono">{assignment.asset.asset_code}</p>
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Informasi Unit</p>
+             <p className="text-sm font-bold text-slate-800">{assignment.asset.asset_name}</p>
+             <p className="text-[10px] font-bold text-indigo-500 font-mono">{assignment.asset.asset_code}</p>
            </div>
         </div>
 
-        {/* 👈 Panggil Client Component untuk Form */}
-        <EditAssignmentForm assignment={assignment} />
+        {/* Kirim data plain object yang sudah tervalidasi 100% aman ke Client Form */}
+        <EditAssignmentForm assignment={serializedAssignment} />
       </div>
     </div>
   );

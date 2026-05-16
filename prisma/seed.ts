@@ -1,154 +1,165 @@
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import * as bcrypt from 'bcryptjs'; // Pastikan lu udah install bcryptjs: npm install bcryptjs
 
 const prisma = new PrismaClient();
 
-// Helper Randomizer
-const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
-const randomEl = (arr: any[]) => arr[Math.floor(Math.random() * arr.length)];
+const BRANCHES = [
+  "HO - Head Office", "Jakarta", "Bekasi", "Tangerang", "Bandung", 
+  "Semarang", "Yogyakarta", "Surabaya", "Bali", "Lampung", 
+  "Palembang", "Pekanbaru", "Medan", "Pontianak", "Samarinda", "Makassar"
+];
+
+const DIVISIONS = ["IT", "GA", "ASS", "MKT"];
+const CONDITIONS = ["Sangat Baik", "Lecet Pemakaian", "Perlu Servis Ringan"];
+const STATUSES = ["Available", "Maintenance", "Damaged"]; // Assigned akan diset otomatis saat proses assignment
+
+// Helper untuk Random Data
+const getRandomElement = (arr: any[]) => arr[Math.floor(Math.random() * arr.length)];
+const generateRandomPrice = () => Math.floor(Math.random() * (15000000 - 500000 + 1) + 500000); // 500k - 15jt
 
 async function main() {
-  console.log('🌱 Memulai proses seeding data PT Gree Appliances Indonesia...');
+  console.log('⏳ Memulai proses Reset & Seeding Data...');
 
   // ==========================================
-  // 1. DATA USERS (1 Superadmin + 10 Admin Cabang)
+  // 1. RESET DATA SEBELUMNYA (DARI BAWAH KE ATAS)
   // ==========================================
-  const branches = [
-    "HO - Head Office Jakarta", "Cabang Bekasi", "Cabang Wonosobo", 
-    "Cabang Tegal", "Cabang Bangka", "Cabang Bandung", 
-    "Cabang Surabaya", "Cabang Semarang", "Cabang Medan", "Cabang Bali"
-  ];
+  console.log('🧹 Menghapus data lama...');
+  await prisma.assignment.deleteMany();
+  await prisma.asset.deleteMany();
+  await prisma.category.deleteMany();
+  if ((prisma as any).log) {
+    await (prisma as any).log.deleteMany(); // Hapus log jika model Log terdefinisi
+  }
+  await prisma.user.deleteMany();
 
-  // Enkripsi password "password123"
-  const hashedPassword = await bcrypt.hash("password123", 10); 
+  // ==========================================
+  // 2. SEEDING USERS
+  // ==========================================
+  console.log('👤 Membuat 33 User Akun...');
+  const defaultPassword = await bcrypt.hash('password123', 10);
 
-  const usersData = [
-    { username: "firsawanto", name: "Firsawanto Saputra", role: "superadmin", branch: "HO - Head Office Jakarta", password: hashedPassword },
-    ...branches.map((branch, i) => ({
-      username: `admin${i + 1}`,
-      name: `Admin ${branch.replace('Cabang ', '')}`,
-      role: "admin",
+  // 2.a. Superadmin
+  await prisma.user.create({
+    data: {
+      name: 'Bapak Superadmin',
+      username: 'superadmin',
+      password: defaultPassword,
+      role: 'Superadmin',
+      branch: 'HO - Head Office',
+    }
+  });
+
+  // 2.b. Admin & User per Cabang
+  const userPayloads = [];
+  for (const branch of BRANCHES) {
+    const branchCode = branch.split(' ')[0].toLowerCase(); // cth: jakarta
+    
+    // Admin Cabang
+    userPayloads.push({
+      name: `Admin ${branch.split(' ')[0]}`,
+      username: `admin_${branchCode}`,
+      password: defaultPassword,
+      role: 'Admin',
       branch: branch,
-      password: hashedPassword
-    }))
-  ];
+    });
 
-  for (const u of usersData) {
-    await prisma.user.upsert({
-      where: { username: u.username },
-      update: { password: hashedPassword }, 
-      create: u,
+    // User Cabang (Read-Only)
+    userPayloads.push({
+      name: `User ${branch.split(' ')[0]}`,
+      username: `user_${branchCode}`,
+      password: defaultPassword,
+      role: 'User',
+      branch: branch,
     });
   }
-  console.log(`✅ Berhasil membuat/update 11 Akun Login dengan Password Hashed.`);
+  await prisma.user.createMany({ data: userPayloads });
 
+ // ==========================================
+  // 3. SEEDING KATEGORI (50 Kategori)
   // ==========================================
-  // 2. DATA KATEGORI (50 Kategori)
-  // ==========================================
-  const categoryNames = [
-    // IT
-    "Laptop Windows", "MacBook", "PC Desktop", "Monitor", "Printer Laser", 
-    "Printer Inkjet", "Scanner", "Proyektor", "Server", "Router/Switch",
-    "UPS", "Keyboard & Mouse", "Webcam", "Headset", "Tablet", 
-    "Smartphone Operasional", "Smart TV", "CCTV Camera", "NVR/DVR", "Access Point",
-    "Kabel Jaringan", "Rack Server", "Firewall Device", "NAS Storage", "External HDD",
-    // GA (General Affairs)
-    "Mobil Operasional", "Mobil Direksi", "Motor Operasional", "Meja Kerja", "Kursi Ergonomis",
-    "Lemari Arsip", "Brankas", "AC Split", "AC Standing", "Air Purifier",
-    "Dispenser", "Kulkas Pantri", "Microwave", "Mesin Kopi", "Sofa Tamu",
-    "Meja Rapat", "Papan Tulis", "Mesin Absensi", "Genset", "Apar (Pemadam)",
-    // Tools / Peralatan Khusus
-    "Impact Wrench", "Socket Set Mekanik", "Multitester", "Toolbox Set", "Bor Listrik"
-  ];
-
-  const categories = [];
-  for (let i = 0; i < 50; i++) {
-    const isIT = i < 25;
-    const isTools = i >= 45;
-    const cat = await prisma.category.create({
-      data: {
-        category_name: categoryNames[i],
-        owner_dept: isIT ? "IT" : (isTools ? "ENGINEERING" : "GA"),
-        branch: randomEl(branches) 
-      }
+  console.log('📁 Membuat 50 Kategori Aset...');
+  const categoryPayloads = [];
+  for (let i = 1; i <= 50; i++) {
+    const ownerDept = DIVISIONS[i % 4]; // Membagi rata ke 4 divisi
+    categoryPayloads.push({
+      category_name: `Kategori ${ownerDept} - ${i}`,
+      owner_dept: ownerDept,
+      branch: getRandomElement(BRANCHES), // 👈 WAJIB ADA BIAR ADMIN CABANG BISA LIHAT KATEGORINYA
     });
-    categories.push(cat);
   }
-  console.log(`✅ Berhasil membuat 50 Kategori.`);
+  await prisma.category.createMany({ data: categoryPayloads });
+  const createdCategories = await prisma.category.findMany();
 
   // ==========================================
-  // 3. DATA ASET (150 Aset)
+  // 4. SEEDING ASET (400 Aset)
   // ==========================================
-  const assets = [];
-  const vendors = ["PT Bhinneka Mentari", "PT Astrido", "Toko Komputer Harco", "Gree Official Store", "IKEA Indonesia", "Tekiro Official"];
-  const conditions = ["Baru", "Baik", "Normal", "Minus Sedikit"];
+  console.log('💻 Membuat 400 Aset...');
+  const assetPayloads = [];
+  const currentDate = new Date();
 
-  for (let i = 1; i <= 150; i++) {
-    const category = randomEl(categories);
-    const branch = randomEl(branches);
-    const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+  for (let i = 1; i <= 400; i++) {
+    const category = getRandomElement(createdCategories);
     
-    const assetImage = `https://dummyimage.com/600x400/4f46e5/ffffff&text=Asset+${i}`;
-    const invoiceFile = `https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf`;
+    // Bikin garansi random
+    const warrantyDate = new Date();
+    warrantyDate.setDate(currentDate.getDate() + (Math.random() * 730 - 365)); // -1 tahun s/d +1 tahun
 
-    const asset = await prisma.asset.create({
-      data: {
-        asset_code: `AST-2026-${randomStr}`,
-        asset_name: `${category.category_name} - Unit ${i}`,
-        category_id: category.id,
-        managing_division: category.owner_dept,
-        serial_number: `SN-${Date.now().toString().slice(-6)}-${i}`,
-        condition: randomEl(conditions),
-        location: `Ruangan ${randomInt(101, 505)}`,
-        branch: branch,
-        price: randomInt(1500000, 25000000), 
-        vendor_name: randomEl(vendors),
-        description: `Pengadaan batch 2026 untuk cabang ${branch}.`,
-        purchase_date: new Date(new Date().setDate(new Date().getDate() - randomInt(10, 365))), 
-        warranty_date: new Date(new Date().setFullYear(new Date().getFullYear() + randomInt(1, 3))), 
-        asset_image: assetImage,
-        invoice_file: invoiceFile,
-        status: "Available" 
-      }
-    });
-    assets.push(asset);
-  }
-  console.log(`✅ Berhasil membuat 150 Aset dengan foto & invoice dummy.`);
-
-  // ==========================================
-  // 4. DATA ASSIGNMENT / HANDOVER (100 Data)
-  // ==========================================
-  const departments = ["IT Infrastructure", "Sales & Marketing", "Finance & Tax", "HR & Legal", "Engineering"];
-  const firstNames = ["Budi", "Siti", "Andi", "Rina", "Joko", "Dewi", "Agus", "Ayu", "Rizky", "Putri"];
-  const lastNames = ["Santoso", "Wijaya", "Pratama", "Lestari", "Setiawan", "Sari", "Nugroho", "Indah"];
-
-  for (let i = 0; i < 100; i++) {
-    const assetToAssign = assets[i];
-    const picName = `${randomEl(firstNames)} ${randomEl(lastNames)}`;
-    
-    await prisma.assignment.create({
-      data: {
-        asset_id: assetToAssign.id,
-        borrower_name: picName,
-        department: randomEl(departments),
-        notes: `Diserahkan beserta kelengkapan standar (kabel power, charger). Kondisi ${assetToAssign.condition}.`,
-        assign_date: new Date(new Date().setDate(new Date().getDate() - randomInt(1, 60))) 
-      }
-    });
-
-    await prisma.asset.update({
-      where: { id: assetToAssign.id },
-      data: { status: "Assigned" }
+    assetPayloads.push({
+      asset_code: `AST-${category.owner_dept}-${i.toString().padStart(4, '0')}`,
+      asset_name: `Unit Aset ${category.category_name} #${i}`,
+      category_id: category.id,
+      managing_division: category.owner_dept,
+      branch: getRandomElement(BRANCHES),
+      status: getRandomElement(STATUSES),
+      condition: getRandomElement(CONDITIONS),
+      price: generateRandomPrice(),
+      vendor_name: `PT Vendor Global ${i % 10}`,
+      purchase_date: new Date(currentDate.getTime() - Math.random() * 10000000000), // Random past date
+      warranty_date: warrantyDate,
+      location: `Ruangan Operasional ${i % 5}`,
+      serial_number: `SN-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
+      description: `Ini adalah deskripsi dummy untuk aset nomor ${i}. Berfungsi dengan baik.`,
+      asset_image: `https://dummyimage.com/600x400/e2e8f0/475569.png&text=Foto+Aset+${i}`,
+      invoice_file: `https://dummyimage.com/600x800/f8fafc/0f172a.png&text=Invoice+Aset+${i}`,
     });
   }
-  console.log(`✅ Berhasil membuat 100 riwayat Handover dan update status aset.`);
+  await prisma.asset.createMany({ data: assetPayloads });
+  
+  // ==========================================
+  // 5. SEEDING ASSIGNMENT (350 Serah Terima)
+  // ==========================================
+  console.log('🤝 Membuat 350 Data Serah Terima (Assignments)...');
+  
+  // Ambil 350 aset secara acak untuk diserah-terimakan
+  const allAssets = await prisma.asset.findMany({ take: 350 });
+  const assignmentPayloads = [];
+  
+  for (const asset of allAssets) {
+    assignmentPayloads.push({
+      asset_id: asset.id,
+      borrower_name: `Karyawan Dummy ${asset.id}`,
+      department: getRandomElement(['Finance', 'Marketing', 'Operasional', 'HRD', 'Support']),
+      assign_date: new Date(currentDate.getTime() - Math.random() * 5000000000), 
+      notes: "Digunakan untuk keperluan operasional harian cabang.",
+    });
+  }
+  
+  await prisma.assignment.createMany({ data: assignmentPayloads });
 
-  console.log('🎉 Seeding Selesai! Database PT Gree Appliances Indonesia siap digunakan.');
+  // Update status aset yang di-assign menjadi 'Assigned'
+  const assignedAssetIds = allAssets.map(a => a.id);
+  await prisma.asset.updateMany({
+    where: { id: { in: assignedAssetIds } },
+    data: { status: 'Assigned' }
+  });
+
+  console.log('✅ Seeding Selesai Bray! Database lu sekarang udah penuh gizi!');
+  console.log('🔑 Password untuk semua akun adalah: password123');
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Terjadi error saat seeding:", e);
+    console.error('❌ Gagal melakukan seeding:', e);
     process.exit(1);
   })
   .finally(async () => {

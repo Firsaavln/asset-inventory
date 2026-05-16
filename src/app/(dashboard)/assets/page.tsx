@@ -1,13 +1,13 @@
 import { prisma } from "@/lib/prisma";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { cookies } from "next/headers"; // 👈 Import cookies
-import { decrypt } from "@/lib/auth";   // 👈 Import auth decryptor
+import { cookies } from "next/headers"; // 👈 Ambil data session cookie
+import { decrypt } from "@/lib/auth";   // 👈 Dekripsi token session
 import { 
   Plus, MonitorSmartphone, Pencil, LayoutGrid, MapPin, Tag, Building2
 } from "lucide-react";
 import AssetFilters from "./AssetFilters";
 import ExportAssetButton from "@/components/ExportAssetButton";
-// import DeleteAssetButton from "@/components/DeleteAssetButton"; 
 import Pagination from "@/components/Pagination"; 
 
 export const dynamic = "force-dynamic"; // 🔥 Matikan cache agar aman
@@ -19,14 +19,20 @@ const formatRupiah = (angka: number) => {
 
 export default async function AssetsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
   
-  // 🔥 1. AMBIL DATA SESSION & CABANG
+  // 🔥 1. AMBIL DATA SESSION & OTORISASI CABANG
   const cookieStore = await cookies();
   const token = cookieStore.get("session")?.value;
   const payload = token ? await decrypt(token) : null;
+  
+  if (!payload) redirect("/login");
+
   const userRole = payload?.role as string;
   const userBranch = payload?.branch as string;
 
   const isSuperAdmin = userRole?.toLowerCase() === "superadmin";
+  
+  // 🔥 FLAGS FEATURE: Proteksi tingkat visibilitas akun Read-Only User
+  const isReadOnlyUser = userRole?.toLowerCase() === "user";
 
   // Ambil URL parameter untuk filter dan pagination
   const resolvedParams = await searchParams;
@@ -48,10 +54,10 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
     select: { id: true, category_name: true } 
   });
 
-  // 🔥 3. FIREWALL UTAMA (Filter Aset Sesuai Cabang)
+  // 🔥 3. FIREWALL UTAMA (Filter Aset Sesuai Wilayah Cabang)
   const whereClause: any = {
     asset_name: { contains: q },
-    location: { contains: loc }, // Ini mencari di field 'location' (contoh: Ruangan 101)
+    location: { contains: loc }, 
     status: { not: "Disposed" },
     ...(cat ? { category_id: Number(cat) } : {})
   };
@@ -75,10 +81,10 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
   });
 
   return (
-    <div className="p-6 md:p-10 max-w-[1400px] mx-auto space-y-8">
+    <div className="p-4 sm:p-6 md:p-10 max-w-[1400px] mx-auto space-y-8">
       
-      {/* --- HEADER SECTION --- */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden">
+      {/* --- HEADER SECTION (RESPONSIVE FIX) --- */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden">
         <div className="absolute -top-10 -right-10 w-40 h-40 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-full blur-2xl -z-10"></div>
         
         <div className="flex items-center gap-4">
@@ -96,11 +102,19 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* 🔥 FIX MOBIL RESPONSIVE BUTTON CONTAINER */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto shrink-0 relative z-10">
           <ExportAssetButton />
-          <Link href="/assets/add" className="flex items-center justify-center gap-2 bg-slate-900 hover:bg-indigo-600 text-white px-6 py-4 rounded-2xl font-bold shadow-lg shadow-slate-200 hover:shadow-indigo-200 transition-all active:scale-95 whitespace-nowrap">
-            <Plus className="w-5 h-5" /> Registrasi Aset
-          </Link>
+          
+          {/* Sembunyikan Tombol Registrasi jika Peran User adalah Read-Only */}
+          {!isReadOnlyUser && (
+            <Link 
+              href="/assets/add" 
+              className="flex items-center justify-center gap-2 bg-slate-900 hover:bg-indigo-600 text-white px-5 py-3.5 sm:px-6 sm:py-4 rounded-2xl font-bold shadow-lg shadow-slate-200 hover:shadow-indigo-200 transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"
+            >
+              <Plus className="w-5 h-5" /> Registrasi Aset
+            </Link>
+          )}
         </div>
       </div>
 
@@ -143,7 +157,7 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
 
                   {/* KATEGORI & LOKASI */}
                   <td className="px-6 py-5 space-y-2">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-black uppercase bg-indigo-50 text-indigo-700 border border-indigo-100">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-100">
                       <Tag className="w-3 h-3" /> {asset.category.category_name}
                     </span>
                     <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
@@ -174,9 +188,10 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
                     </span>
                   </td>
 
-                  {/* AKSI */}
+                  {/* AKSI CONTROLLER */}
                   <td className="px-6 py-5 text-right">
                     <div className="flex items-center justify-end gap-2">
+                      {/* Tombol Detail (Bisa diakses oleh semua peran) */}
                       <Link 
                         href={`/assets/${asset.id}`}
                         className="p-2.5 text-sky-500 bg-sky-50 hover:text-white hover:bg-sky-500 rounded-xl transition-all duration-300 shadow-sm hover:shadow-sky-200 active:scale-95"
@@ -185,15 +200,16 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                       </Link>
 
-                      <Link 
-                        href={`/assets/${asset.id}/edit`}
-                        className="p-2.5 text-indigo-500 bg-indigo-50 hover:text-white hover:bg-indigo-600 rounded-xl transition-all duration-300 shadow-sm hover:shadow-indigo-200 active:scale-95"
-                        title="Edit Aset"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Link>
-                      
-                      {/* <DeleteAssetButton id={asset.id} assetName={asset.asset_name} /> */}
+                      {/* 🔥 PROTEKSI UI: Sembunyikan ikon Pensil Edit jika peran user adalah Read-Only */}
+                      {!isReadOnlyUser && (
+                        <Link 
+                          href={`/assets/${asset.id}/edit`}
+                          className="p-2.5 text-indigo-500 bg-indigo-50 hover:text-white hover:bg-indigo-600 rounded-xl transition-all duration-300 shadow-sm hover:shadow-indigo-200 active:scale-95"
+                          title="Edit Aset"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Link>
+                      )}
                     </div>
                   </td>
                 </tr>
