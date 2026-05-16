@@ -35,45 +35,55 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
   return (
     <div className="p-4 sm:p-6 md:p-10 max-w-7xl mx-auto space-y-6 md:space-y-8 font-sans">
       
-      {/* --- HEADER --- */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm">
-        <div className="flex flex-col gap-2">
+     {/* --- HEADER --- */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200/60 shadow-sm relative overflow-hidden">
+        {/* Dekorasi Background */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-50/40 to-transparent rounded-bl-full pointer-events-none"></div>
+
+        <div className="flex flex-col gap-2.5 relative z-10">
           <Link 
             href="/assets" 
-            className="flex items-center text-[11px] font-black text-slate-400 hover:text-indigo-600 transition-all w-fit group uppercase tracking-widest"
+            className="flex items-center text-[10px] font-black text-slate-400 hover:text-indigo-600 transition-colors w-fit group uppercase tracking-widest bg-slate-50 hover:bg-indigo-50 px-3 py-1.5 rounded-lg border border-slate-100 hover:border-indigo-100"
           >
-            <ArrowLeft className="w-4 h-4 mr-1.5 group-hover:-translate-x-1 transition-transform" /> 
+            <ArrowLeft className="w-3.5 h-3.5 mr-1.5 group-hover:-translate-x-1 transition-transform" /> 
             Kembali ke Inventaris
           </Link>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-4">
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 tracking-tight">{asset.asset_code}</h1>
             
-            <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${
+            <span className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border shadow-sm flex items-center gap-1.5 ${
               asset.status === 'Available' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
               asset.status === 'Assigned' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' :
               asset.status === 'Maintenance' ? 'bg-amber-50 text-amber-600 border-amber-200' :
               'bg-rose-50 text-rose-600 border-rose-200'
             }`}>
+               <div className={`w-1.5 h-1.5 rounded-full ${
+                  asset.status === 'Available' ? 'bg-emerald-500' :
+                  asset.status === 'Assigned' ? 'bg-indigo-500' :
+                  asset.status === 'Maintenance' ? 'bg-amber-500' :
+                  'bg-rose-500'
+               }`}></div>
               {asset.status}
             </span>
           </div>
         </div>
 
-        {/* --- TOMBOL AKSI ATAS --- */}
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+        {/* --- TOMBOL AKSI UTAMA (SUPER CLEAN & COHESIVE) --- */}
+        <div className="flex items-center justify-start sm:justify-end gap-2 relative z-10 mt-2 lg:mt-0 shrink-0">
           
-          <div className="flex-1 sm:flex-none">
-            <PrintLabelButton />
-          </div>
+          {/* 1. Print Label (Icon Only - Netral) */}
+          <PrintLabelButton assetCode={asset.asset_code} assetName={asset.asset_name} />
 
+          {/* 2. Edit Data (Icon Only - Slate Dark) */}
           <Link 
             href={`/assets/${asset.id}/edit`}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-900 hover:bg-indigo-600 text-white px-5 py-3.5 rounded-2xl font-bold shadow-lg shadow-slate-200 hover:shadow-indigo-200 transition-all active:scale-95 group text-sm"
+            className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-3 rounded-xl font-bold transition-all active:scale-95 border border-slate-200 shadow-sm"
+            title="Edit Data Aset"
           >
-            <Edit className="w-4 h-4 group-hover:rotate-12 transition-transform" /> Edit Data
+            <Edit className="w-4 h-4 group-hover:rotate-12 transition-transform" />
           </Link>
 
-          {/* 👇 TOMBOL DISPOSAL YANG SUDAH RAPI & SEJAJAR */}
+          {/* 3. Disposal (Full Button - Destructive Alert) */}
           {asset.status !== "Disposed" && (
             <DisposeButton assetId={asset.id} />
           )}

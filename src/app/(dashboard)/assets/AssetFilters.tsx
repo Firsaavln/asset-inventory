@@ -23,6 +23,9 @@ export default function AssetFilters({ categories }: { categories: any[] }) {
         if (cat) params.set("category", cat);
         if (loc) params.set("location", loc);
         
+        // Reset page ke 1 setiap kali filter diubah
+        params.set("page", "1"); 
+
         router.push(`/assets?${params.toString()}`);
       });
     }, 500);
@@ -67,14 +70,14 @@ export default function AssetFilters({ categories }: { categories: any[] }) {
         </div>
       </div>
 
-      {/* FILTER 3: LOKASI / BRANCH */}
+      {/* FILTER 3: LOKASI FISIK RUANGAN */}
       <div className="md:w-64 relative">
         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
           <MapPin className="w-4 h-4 text-slate-400" />
         </div>
         <input 
           type="text" 
-          placeholder="Filter Branch (Cth: HO Jakarta)" 
+          placeholder="Filter Ruangan (Cth: 101)" 
           value={loc}
           onChange={(e) => setLoc(e.target.value)}
           className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-sm font-medium text-slate-700 transition-all"

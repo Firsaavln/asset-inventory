@@ -4,9 +4,14 @@ import {
   BriefcaseBusiness, Activity, TrendingUp, 
   Wrench, ArrowRight, AlertOctagon, 
   PieChart, ShieldAlert, Clock,
-  BarChart3
+  BarChart3, Building2
 } from "lucide-react";
 import Link from "next/link";
+import { cookies } from "next/headers"; // 👈 Import cookies
+import { decrypt } from "@/lib/auth";   // 👈 Import auth decryptor
+
+// 🔥 WAJIB: Matikan cache agar Dashboard selalu menampilkan data real-time per admin
+export const dynamic = "force-dynamic";
 
 // Helper Format Rupiah
 const formatRupiah = (angka: number) => {
@@ -18,7 +23,22 @@ const formatRupiah = (angka: number) => {
 };
 
 export default async function DashboardPage() {
-  // --- QUERY DATABASE ---
+  // 🔥 1. AMBIL DATA SESSION & CABANG
+  const cookieStore = await cookies();
+  const token = cookieStore.get("session")?.value;
+  const payload = token ? await decrypt(token) : null;
+  const userRole = payload?.role as string;
+  const userBranch = payload?.branch as string;
+
+  const isSuperAdmin = userRole?.toLowerCase() === "superadmin";
+
+  // 🔥 2. BUAT FILTER FIREWALL CABANG
+  const baseWhere: any = {};
+  if (!isSuperAdmin) {
+    baseWhere.branch = userBranch || "UNKNOWN_BRANCH";
+  }
+
+  // --- QUERY DATABASE DENGAN INJEKSI FIREWALL ---
   const [
     totalAssetsRaw,
     availableAssets,
@@ -32,22 +52,22 @@ export default async function DashboardPage() {
     gaAssetsCount,
     hrAssetsCount
   ] = await Promise.all([
-    prisma.asset.count(),
-    prisma.asset.count({ where: { status: "Available" } }),
-    prisma.asset.count({ where: { status: "Assigned" } }),
-    prisma.asset.count({ where: { status: "Maintenance" } }),
-    prisma.asset.count({ where: { status: "Damaged" } }),
-    prisma.asset.count({ where: { status: "Disposed" } }),
-    prisma.asset.aggregate({ _sum: { price: true }, where: { status: { not: "Disposed" } } }), // Nilai aset aktif saja
+    prisma.asset.count({ where: { ...baseWhere } }),
+    prisma.asset.count({ where: { ...baseWhere, status: "Available" } }),
+    prisma.asset.count({ where: { ...baseWhere, status: "Assigned" } }),
+    prisma.asset.count({ where: { ...baseWhere, status: "Maintenance" } }),
+    prisma.asset.count({ where: { ...baseWhere, status: "Damaged" } }),
+    prisma.asset.count({ where: { ...baseWhere, status: "Disposed" } }),
+    prisma.asset.aggregate({ _sum: { price: true }, where: { ...baseWhere, status: { not: "Disposed" } } }), 
     prisma.asset.findMany({
       take: 6,
-      where: { status: { not: "Disposed" } },
+      where: { ...baseWhere, status: { not: "Disposed" } },
       orderBy: { created_at: "desc" },
       include: { category: true }
     }),
-    prisma.asset.count({ where: { managing_division: "IT", status: { not: "Disposed" } } }),
-    prisma.asset.count({ where: { managing_division: "GA", status: { not: "Disposed" } } }),
-    prisma.asset.count({ where: { managing_division: "HR", status: { not: "Disposed" } } }),
+    prisma.asset.count({ where: { ...baseWhere, managing_division: "IT", status: { not: "Disposed" } } }),
+    prisma.asset.count({ where: { ...baseWhere, managing_division: "GA", status: { not: "Disposed" } } }),
+    prisma.asset.count({ where: { ...baseWhere, managing_division: "HR", status: { not: "Disposed" } } }),
   ]);
 
   // --- KALKULASI METRIK INSIGHT ---
@@ -72,8 +92,14 @@ export default async function DashboardPage() {
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-50/30 rounded-tr-full -z-10"></div>
         
         <div className="space-y-4 relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-bold text-slate-500 mb-2">
-            <Clock className="w-3.5 h-3.5" /> {currentDate}
+          <div className="flex flex-wrap items-center gap-3 mb-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-bold text-slate-500">
+              <Clock className="w-3.5 h-3.5" /> {currentDate}
+            </div>
+            {/* 🔥 Indikator Cabang */}
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-lg text-xs font-black uppercase tracking-widest">
+              <Building2 className="w-3.5 h-3.5" /> {isSuperAdmin ? "Semua Cabang (HO)" : userBranch}
+            </div>
           </div>
           <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
             Dashboard Utama
@@ -262,7 +288,7 @@ export default async function DashboardPage() {
             <tbody className="divide-y divide-slate-100">
               {recentAssignments.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="text-center py-10 text-sm font-bold text-slate-400">Belum ada aset terdaftar.</td>
+                  <td colSpan={4} className="text-center py-10 text-sm font-bold text-slate-400">Belum ada aset terdaftar di cabang ini.</td>
                 </tr>
               ) : (
                 recentAssignments.map((asset) => (

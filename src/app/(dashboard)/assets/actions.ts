@@ -44,7 +44,7 @@ const handleFileUpload = async (formData: FormData, fileKey: string) => {
 };
 
 // ==========================================
-// 1. CREATE ASSET (FIXED REDIRECT BUG)
+// 1. CREATE ASSET (FIREWALL & SUPERADMIN SUPPORT)
 // ==========================================
 export async function createAsset(formData: FormData) {
   const actor = await getActor();
@@ -63,6 +63,13 @@ export async function createAsset(formData: FormData) {
     const warranty_date_raw = formData.get("warranty_date") as string;
     const warranty_date = warranty_date_raw ? new Date(warranty_date_raw) : null;
 
+    // 🔥 LOGIKA CABANG:
+    // Jika Superadmin, ambil input cabang dari form (jika ada), kalau tidak ada pakai cabang default superadmin.
+    // Jika Admin biasa, paksa gunakan cabang tempat dia bertugas (actor.branch).
+    const branchInput = formData.get("branch") as string;
+    const isSuperAdmin = actor.role.toLowerCase() === "superadmin";
+    const finalBranch = isSuperAdmin && branchInput ? branchInput : actor.branch;
+
     const asset_image = await handleFileUpload(formData, "asset_image");
     const invoice_file = await handleFileUpload(formData, "invoice_file");
 
@@ -78,7 +85,7 @@ export async function createAsset(formData: FormData) {
         serial_number,
         condition,
         location,
-        branch: actor.branch,
+        branch: finalBranch, // 👈 Disematkan secara dinamis dan aman
         price: Number(price),
         vendor_name,
         description,
@@ -90,12 +97,12 @@ export async function createAsset(formData: FormData) {
       }
     });
 
-    await recordLog("CREATE", "ASSET", `Menambahkan aset: ${asset_code} (${asset_name}) di ${actor.branch}`, actor.name, actor.role);
+    await recordLog("CREATE", "ASSET", `Menambahkan aset: ${asset_code} (${asset_name}) di ${finalBranch}`, actor.name, actor.role);
 
     revalidatePath("/assets");
     revalidatePath("/logs");
 
-    return { success: true }; // 🔥 Kembalikan sukses, jangan redirect di sini
+    return { success: true }; 
 
   } catch (error) {
     console.error("Gagal menyimpan aset:", error);
@@ -110,13 +117,12 @@ export async function updateAsset(id: number, formData: FormData) {
   const actor = await getActor();
 
   try {
-    // 🔥 FIREWALL LOGIC: Cek data aset sebelum diupdate
     const existingAsset = await prisma.asset.findUnique({ where: { id } });
     if (!existingAsset) return { success: false, error: "Aset tidak ditemukan." };
     
-    // Cek apakah Admin yang beda cabang mencoba mengubah aset ini
-    if (actor.role !== "superadmin" && existingAsset.branch !== actor.branch) {
-      // Ubah SECURITY_ALERT jadi UPDATE
+    // 🔥 FIREWALL LOGIC: Cek apakah Admin yang beda cabang mencoba mengubah aset ini
+    const isSuperAdmin = actor.role.toLowerCase() === "superadmin";
+    if (!isSuperAdmin && existingAsset.branch !== actor.branch) {
       await recordLog("UPDATE", "ASSET", `[SECURITY ALERT] Akses Ilegal: Mencoba edit aset milik cabang ${existingAsset.branch}`, actor.name, actor.role);
       return { success: false, error: "Akses Ditolak: Anda tidak memiliki wewenang untuk aset di cabang ini." };
     }
@@ -153,7 +159,7 @@ export async function updateAsset(id: number, formData: FormData) {
     revalidatePath(`/assets/${id}`);
     revalidatePath("/logs");
 
-    return { success: true }; // 🔥 Kembalikan sukses
+    return { success: true };
 
   } catch (error) {
     console.error(error);
@@ -171,8 +177,8 @@ export async function deleteAssetAction(id: number) {
     if (!asset) return { success: false, message: "Aset tidak ditemukan." };
 
     // 🔥 FIREWALL LOGIC: Proteksi Hapus Data Antar Cabang
-    if (actor.role !== "superadmin" && asset.branch !== actor.branch) {
-      // Ubah SECURITY_ALERT jadi DELETE
+    const isSuperAdmin = actor.role.toLowerCase() === "superadmin";
+    if (!isSuperAdmin && asset.branch !== actor.branch) {
       await recordLog("DELETE", "ASSET", `[SECURITY ALERT] Akses Ilegal: Mencoba hapus aset milik cabang ${asset.branch}`, actor.name, actor.role);
       return { success: false, message: "Akses Ditolak: Aset ini terdaftar di cabang lain." };
     }
@@ -195,12 +201,12 @@ export async function deleteAssetAction(id: number) {
 export async function disposeAssetAction(id: number) {
   const actor = await getActor();
   try {
-    // 🔥 FIREWALL LOGIC: Proteksi Pindah Gudang/Disposal
     const assetCheck = await prisma.asset.findUnique({ where: { id } });
     if (!assetCheck) return { success: false, message: "Aset tidak ditemukan." };
 
-    if (actor.role !== "superadmin" && assetCheck.branch !== actor.branch) {
-      // Ubah SECURITY_ALERT jadi UPDATE
+    // 🔥 FIREWALL LOGIC: Proteksi Pindah Gudang/Disposal
+    const isSuperAdmin = actor.role.toLowerCase() === "superadmin";
+    if (!isSuperAdmin && assetCheck.branch !== actor.branch) {
       await recordLog("UPDATE", "ASSET", `[SECURITY ALERT] Akses Ilegal: Mencoba membuang aset cabang ${assetCheck.branch}`, actor.name, actor.role);
       return { success: false, message: "Akses Ditolak: Tidak memiliki izin modifikasi cabang tersebut." };
     }
@@ -222,7 +228,7 @@ export async function disposeAssetAction(id: number) {
 }
 
 // ==========================================
-// 5. GET DATA UNTUK EXCEL
+// 5. GET DATA UNTUK EXCEL (FIREWALL APPLIED)
 // ==========================================
 export async function getAssetsForExport(q?: string, catId?: string, loc?: string) {
   const actor = await getActor();
@@ -234,8 +240,10 @@ export async function getAssetsForExport(q?: string, catId?: string, loc?: strin
     ...(catId ? { category_id: Number(catId) } : {})
   };
 
-  if (actor.role !== "superadmin") {
-    where.branch = actor.branch;
+  // 🔥 FILTER EXPORT CABANG
+  const isSuperAdmin = actor.role.toLowerCase() === "superadmin";
+  if (!isSuperAdmin) {
+    where.branch = actor.branch || "UNKNOWN_BRANCH";
   }
 
   const assets = await prisma.asset.findMany({

@@ -9,11 +9,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// --- TABEL KATEGORI ---
+// --- TABEL KATEGORI (SUDAH DIKUNCI PER CABANG) ---
 model Category {
   id            Int      @id @default(autoincrement())
   category_name String
   owner_dept    String   // IT atau GA
+  branch        String?  // Pengunci cabang agar kategori tidak bocor ke cabang lain
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
@@ -23,38 +24,37 @@ model Category {
 
 // --- TABEL ASET UTAMA ---
 model Asset {
-  id                Int       @id @default(autoincrement())
-  asset_code        String    @unique // Kode otomatis (misal: IT-LAP-001)
+  id                Int          @id @default(autoincrement())
+  asset_code        String       @unique // Kode otomatis (misal: IT-LAP-001)
   asset_name        String
-
-  branch            String   @default("HO - Head Office")
+  branch            String?      @default("HO - Head Office") 
   
   // Relasi Kategori
   category_id       Int
-  category          Category  @relation(fields: [category_id], references: [id])
+  category          Category     @relation(fields: [category_id], references: [id])
   
   // Detail Fisik & Lokasi
-  serial_number     String?   // Bisa kosong kalau furnitur
-  condition         String    @default("New") // New, Good, Fair, Damaged
-  location          String?   
-  managing_division String    // IT, GA, HR
-  description       String?   @db.Text
+  serial_number     String?      // Bisa kosong kalau furnitur
+  condition         String       @default("New") // New, Good, Fair, Damaged
+  location          String?      
+  managing_division String       // IT, GA, HR
+  description       String?      @db.Text
   
   // Media & Dokumen (Simpan path/URL filenya)
-  asset_image       String?   
-  invoice_file      String?   
+  asset_image       String?      
+  invoice_file      String?      
 
   // Finansial & Vendor
-  price             Decimal   @db.Decimal(15, 2) // Support angka milyaran
-  vendor_name       String?   
+  price             Decimal      @db.Decimal(15, 2) // Support angka milyaran
+  vendor_name       String?      
   purchase_date     DateTime
-  warranty_date     DateTime? 
+  warranty_date     DateTime?  
 
   // Status Lifecycle
-  status            String    @default("Available") // Available, Assigned, Maintenance, Damaged
+  status            String       @default("Available") // Available, Assigned, Maintenance, Damaged
   
-  created_at        DateTime  @default(now())
-  updated_at        DateTime  @updatedAt
+  created_at        DateTime     @default(now())
+  updated_at        DateTime     @updatedAt
 
   // Relasi ke tabel Peminjaman
   assignments       Assignment[]
@@ -76,22 +76,20 @@ model Assignment {
   notes         String?   @db.Text
 }
 
-// Tambahkan di paling bawah file
-
+// --- TABEL USER LOGIN ---
 model User {
   id         Int      @id @default(autoincrement())
   name       String
-  username   String   @unique  // 👈 Diganti jadi username
+  username   String   @unique  
   password   String
   role       String   @default("STAFF")
-  branch     String   @default("ALL") // 👈 Tambahan untuk cabang
+  branch     String   @default("ALL") 
   
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 }
 
-
-// Tambahkan ini di bagian bawah file
+// --- TABEL LOG AUDIT ---
 model Log {
   id        Int      @id @default(autoincrement())
   action    String   // Contoh: "CREATE", "UPDATE", "DELETE"

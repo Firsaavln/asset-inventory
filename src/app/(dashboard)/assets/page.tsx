@@ -1,14 +1,16 @@
-export const dynamic = "force-dynamic";
-
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { cookies } from "next/headers"; // 👈 Import cookies
+import { decrypt } from "@/lib/auth";   // 👈 Import auth decryptor
 import { 
-  Plus, MonitorSmartphone, Pencil, LayoutGrid, MapPin, Tag
+  Plus, MonitorSmartphone, Pencil, LayoutGrid, MapPin, Tag, Building2
 } from "lucide-react";
 import AssetFilters from "./AssetFilters";
 import ExportAssetButton from "@/components/ExportAssetButton";
-import DeleteAssetButton from "@/components/DeleteAssetButton"; // Buat komponen ini sama persis kayak DeleteCategory
-import Pagination from "@/components/Pagination"; // 👈 Import komponen Pagination
+// import DeleteAssetButton from "@/components/DeleteAssetButton"; 
+import Pagination from "@/components/Pagination"; 
+
+export const dynamic = "force-dynamic"; // 🔥 Matikan cache agar aman
 
 // Helper untuk format rupiah
 const formatRupiah = (angka: number) => {
@@ -17,7 +19,16 @@ const formatRupiah = (angka: number) => {
 
 export default async function AssetsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
   
-  // Ambil URL parameter untuk filter dan pagination (Next.js 15 Style)
+  // 🔥 1. AMBIL DATA SESSION & CABANG
+  const cookieStore = await cookies();
+  const token = cookieStore.get("session")?.value;
+  const payload = token ? await decrypt(token) : null;
+  const userRole = payload?.role as string;
+  const userBranch = payload?.branch as string;
+
+  const isSuperAdmin = userRole?.toLowerCase() === "superadmin";
+
+  // Ambil URL parameter untuk filter dan pagination
   const resolvedParams = await searchParams;
   const q = resolvedParams.q || "";
   const cat = resolvedParams.category || "";
@@ -25,24 +36,36 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
   
   // Setup parameter Pagination
   const currentPage = Number(resolvedParams.page) || 1;
-  const ITEMS_PER_PAGE = 10; // Menampilkan 10 baris per halaman
+  const ITEMS_PER_PAGE = 10; 
 
-  // Tarik daftar kategori untuk dropdown filter
-  const categories = await prisma.category.findMany({ select: { id: true, category_name: true } });
+  // 🔥 2. FILTER KATEGORI DI DROPDOWN (Sesuai Cabang)
+  const catWhereClause: any = {};
+  if (!isSuperAdmin) {
+    catWhereClause.branch = userBranch || "UNKNOWN_BRANCH";
+  }
+  const categories = await prisma.category.findMany({ 
+    where: catWhereClause,
+    select: { id: true, category_name: true } 
+  });
 
-  // Satukan where clause agar count dan findMany menggunakan filter yang persis sama
+  // 🔥 3. FIREWALL UTAMA (Filter Aset Sesuai Cabang)
   const whereClause: any = {
     asset_name: { contains: q },
-    location: { contains: loc },
+    location: { contains: loc }, // Ini mencari di field 'location' (contoh: Ruangan 101)
     status: { not: "Disposed" },
     ...(cat ? { category_id: Number(cat) } : {})
   };
 
-  // 1. Hitung TOTAL data untuk menentukan jumlah halaman (dengan filter aktif)
-  const totalItems = await prisma.asset.count({ where: whereClause });
-  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+  // Kunci data ke cabang admin yang sedang login
+  if (!isSuperAdmin) {
+    whereClause.branch = userBranch || "UNKNOWN_BRANCH";
+  }
 
-  // 2. Tarik data aset yang difilter sesuai halaman aktif (SKIP & TAKE)
+  // Hitung TOTAL data untuk menentukan jumlah halaman
+  const totalItems = await prisma.asset.count({ where: whereClause });
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
+
+  // Tarik data aset yang difilter sesuai halaman aktif (SKIP & TAKE)
   const assets = await prisma.asset.findMany({
     where: whereClause,
     include: { category: true },
@@ -64,7 +87,12 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
           </div>
           <div>
             <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Inventaris Aset</h1>
-            <p className="text-sm font-medium text-slate-500 mt-1">Kelola data fisik, finansial, dan lokasi aset PT Gree Electric.</p>
+            <div className="flex flex-wrap items-center gap-2 mt-1.5">
+               <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-indigo-100 flex items-center gap-1.5 w-fit">
+                 <Building2 className="w-3.5 h-3.5" /> {isSuperAdmin ? "Semua Cabang (HO)" : userBranch}
+               </span>
+               <p className="text-sm font-medium text-slate-500">Kelola data fisik, finansial, dan lokasi aset.</p>
+            </div>
           </div>
         </div>
 
@@ -99,7 +127,6 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
                   {/* DETAIL ASET */}
                   <td className="px-6 py-5">
                     <div className="flex items-start gap-4">
-                      {/* Kalau ada gambar, tampilkan. Kalau nggak ada, pakai icon default */}
                       <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
                         {asset.asset_image ? (
                           <img src={asset.asset_image} alt={asset.asset_name} className="w-full h-full object-cover" />
@@ -150,8 +177,6 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
                   {/* AKSI */}
                   <td className="px-6 py-5 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      
-                      {/* 1. TOMBOL DETAIL (MATA) */}
                       <Link 
                         href={`/assets/${asset.id}`}
                         className="p-2.5 text-sky-500 bg-sky-50 hover:text-white hover:bg-sky-500 rounded-xl transition-all duration-300 shadow-sm hover:shadow-sky-200 active:scale-95"
@@ -160,7 +185,6 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                       </Link>
 
-                      {/* 2. TOMBOL EDIT (PENSIL) */}
                       <Link 
                         href={`/assets/${asset.id}/edit`}
                         className="p-2.5 text-indigo-500 bg-indigo-50 hover:text-white hover:bg-indigo-600 rounded-xl transition-all duration-300 shadow-sm hover:shadow-indigo-200 active:scale-95"
@@ -169,7 +193,6 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
                         <Pencil className="w-4 h-4" />
                       </Link>
                       
-                      {/* 3. TOMBOL HAPUS */}
                       {/* <DeleteAssetButton id={asset.id} assetName={asset.asset_name} /> */}
                     </div>
                   </td>
@@ -185,14 +208,12 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
                  <MonitorSmartphone className="w-10 h-10 text-slate-300" />
                </div>
                <p className="text-slate-900 font-bold text-xl">Tidak Ada Data Aset</p>
-               <p className="text-slate-500 text-sm mt-1">Coba sesuaikan filter pencarian atau tambahkan aset baru.</p>
+               <p className="text-slate-500 text-sm mt-1">Di cabang {isSuperAdmin ? "Sistem" : userBranch}. Coba sesuaikan filter pencarian.</p>
              </div>
           )}
         </div>
 
-        {/* 👇 KOMPONEN PAGINATION DITAMPILKAN DI SINI */}
         <Pagination totalPages={totalPages} currentPage={currentPage} />
-
       </div>
     </div>
   );
