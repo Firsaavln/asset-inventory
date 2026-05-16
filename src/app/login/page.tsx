@@ -36,7 +36,7 @@ export default function LoginPage() {
 
   return (
     // flex-col untuk HP (ditumpuk), lg:flex-row untuk Desktop (dibelah kiri-kanan)
-    <div className="min-h-screen w-full flex flex-col lg:flex-row bg-white">
+    <div className="min-h-screen w-full flex flex-col lg:flex-row bg-white font-sans">
       
       {/* ================= BAGIAN KIRI: FORM LOGIN ================= */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 lg:p-24 min-h-screen lg:min-h-0 order-1">
@@ -44,9 +44,15 @@ export default function LoginPage() {
           
           {/* Logo & Judul Form */}
           <div className="mb-10 lg:mb-12">
-            <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-indigo-200">
-              <Server className="w-7 h-7 text-white" />
+            {/* 🔥 BARU: LOGO PNG DI ATAS FORM (Diperbesar, Center-Ready, & Auto-Responsive) */}
+            <div className="mb-6 select-none flex items-center justify-start">
+              <img 
+                src="/logo.png" // 👈 Pastikan file logo.png ada di folder public/
+                alt="Asset Portal Logo" 
+                className="h-14 sm:h-16 w-auto object-contain max-w-[240px] sm:max-w-[280px] transition-all duration-300" 
+              />
             </div>
+            
             <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mb-2">Welcome Back.</h1>
             <p className="text-slate-500 font-medium text-sm sm:text-base">Masuk ke sistem manajemen aset terpusat.</p>
           </div>
@@ -99,7 +105,6 @@ export default function LoginPage() {
       </div>
 
       {/* ================= BAGIAN KANAN: BRANDING ENTERPRISE ================= */}
-      {/* Di HP urutannya ke-2 (di bawah form), di Desktop letaknya di kanan */}
       <div className="w-full lg:w-1/2 bg-slate-900 relative overflow-hidden flex flex-col justify-center p-12 lg:p-24 min-h-[50vh] lg:min-h-screen order-2 lg:order-2 border-t lg:border-t-0 border-white/10">
         
         {/* Dekorasi Background Bulatan Cahaya */}
@@ -111,7 +116,7 @@ export default function LoginPage() {
             <div className="p-3 bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
               <Cpu className="w-8 h-8 text-indigo-300" />
             </div>
-            <span className="text-2xl font-bold text-white tracking-wide">E-Asset <span className="text-indigo-400">Hub</span></span>
+            <span className="text-2xl font-bold text-white tracking-wide">Asset <span className="text-indigo-400">Portal</span></span>
           </div>
 
           <h2 className="text-4xl sm:text-5xl font-extrabold text-white leading-[1.15] tracking-tight mb-8">
