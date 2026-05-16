@@ -1,8 +1,10 @@
 export const dynamic = "force-dynamic";
 
-import { prisma } from "@/lib/prisma"; // Menggunakan alias path standar
+import { prisma } from "@/lib/prisma"; 
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
+import { cookies } from "next/headers"; // 👈 Import cookies untuk session
+import { decrypt } from "@/lib/auth";   // 👈 Import decryptor session
 import { 
   Plus, 
   FolderTree, 
@@ -11,20 +13,34 @@ import {
   Server,
   LayoutGrid,
   ShieldCheck, 
-  Wallet      
+  Wallet,
+  Building2
 } from "lucide-react";
 import DeleteCategoryButton from "@/components/DeleteCategoryButton"; 
 import ExportCategoryButton from "@/components/ExportCategoryButton"; 
-import Pagination from "@/components/Pagination"; // 👈 Import Pagination
+import Pagination from "@/components/Pagination"; 
 import { MANAGING_DIVISIONS } from "@/lib/constants"; 
 
-// --- SERVER ACTION ---
+// --- SERVER ACTION (Dilengkapi Inline Firewall) ---
 async function deleteCategory(formData: FormData) {
   "use server";
   const id = formData.get("id") as string;
   
   if (id) {
     try {
+      const cookieStore = await cookies();
+      const token = cookieStore.get("session")?.value;
+      const payload = token ? await decrypt(token) : null;
+      const isSuperAdmin = payload?.role?.toLowerCase() === "superadmin";
+
+      const existing = await prisma.category.findUnique({ where: { id: Number(id) } });
+      
+      // 🔥 FIREWALL SECURITY CHECK
+      if (existing && !isSuperAdmin && existing.branch !== payload?.branch) {
+         console.error("Akses Ditolak: Mencoba menghapus data dari luar cabang authorization.");
+         return; 
+      }
+
       await prisma.category.delete({ 
         where: { id: Number(id) } 
       });
@@ -36,16 +52,32 @@ async function deleteCategory(formData: FormData) {
 }
 
 export default async function CategoriesPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
+  // 🔥 1. DETEKSI IDENTITAS USER & CABANG LOGIN
+  const cookieStore = await cookies();
+  const token = cookieStore.get("session")?.value;
+  const payload = token ? await decrypt(token) : null;
+  const userRole = payload?.role as string;
+  const userBranch = payload?.branch as string;
+  
+  const isSuperAdmin = userRole?.toLowerCase() === "superadmin";
+
   // Paginasi Config
   const resolvedParams = await searchParams;
   const currentPage = Number(resolvedParams?.page) || 1;
   const ITEMS_PER_PAGE = 10;
 
-  // Hitung total dan ambil data (Paginasi)
-  const totalItems = await prisma.category.count();
-  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+  // 🔥 2. BANGUN CONDITIONAL FILTER CABANG (READ FIREWALL)
+  const whereClause: any = {};
+  if (!isSuperAdmin) {
+    whereClause.branch = userBranch || "UNKNOWN_BRANCH";
+  }
+
+  // Hitung total dan ambil data (Dengan Injeksi Filter Pintu Depan)
+  const totalItems = await prisma.category.count({ where: whereClause });
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
 
   const categories = await prisma.category.findMany({
+    where: whereClause, // 👈 Terapkan di query list
     orderBy: { created_at: "desc" },
     skip: (currentPage - 1) * ITEMS_PER_PAGE,
     take: ITEMS_PER_PAGE,
@@ -73,10 +105,12 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
           </div>
           <div>
             <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Kategori Aset</h1>
-            <p className="text-sm font-medium text-slate-500 mt-1 flex items-center gap-1.5">
-              <FolderTree className="w-4 h-4 text-indigo-400" />
-              Kelola klasifikasi dan wewenang departemen.
-            </p>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+               <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-indigo-100 flex items-center gap-1.5 w-fit">
+                 <Building2 className="w-3.5 h-3.5" /> {isSuperAdmin ? "Semua Cabang (HO)" : userBranch}
+               </span>
+               <p className="text-sm font-medium text-slate-500">Kelola klasifikasi dan wewenang departemen.</p>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -139,7 +173,7 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
                         <FolderTree className="w-10 h-10 text-indigo-300" />
                       </div>
                       <p className="text-slate-900 font-bold text-xl mb-1">Kategori Masih Kosong</p>
-                      <p className="text-slate-500 font-medium text-sm mb-6">Belum ada kategori yang ditambahkan.</p>
+                      <p className="text-slate-500 font-medium text-sm mb-6">Belum ada kategori terdaftar untuk {isSuperAdmin ? "seluruh cabang" : userBranch}.</p>
                       <Link href="/categories/add" className="flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-6 py-3 rounded-xl font-bold transition-all">
                         <Plus className="w-4 h-4" /> Buat Kategori Pertama
                       </Link>

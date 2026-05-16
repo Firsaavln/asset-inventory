@@ -13,12 +13,10 @@ datasource db {
 model Category {
   id            Int      @id @default(autoincrement())
   category_name String
-  owner_dept    String   // IT atau GA
-  branch        String?  // Pengunci cabang agar kategori tidak bocor ke cabang lain
+  owner_dept    String
+  branch        String?  // 🔥 PASTIKAN BARIS INI ADA BRAY
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
-
-  // Relasi ke tabel Asset
   assets        Asset[]
 }
 
