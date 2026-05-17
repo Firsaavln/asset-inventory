@@ -1,15 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { updateUser } from "../../actions";
 import Link from "next/link";
-import { ArrowLeft, UserCog, Shield, Building2 } from "lucide-react";
+import { ArrowLeft, UserCog, Shield, Building2, ShieldAlert } from "lucide-react"; // 👈 Tambah ShieldAlert
 import { BRANCHES } from "@/lib/constants"; 
-import { redirect, notFound } from "next/navigation"; // 👈 Tambah 'notFound' untuk pengamanan
-import { cookies } from "next/headers"; // 👈 Tambahan untuk membaca session cookie
-import { decrypt } from "@/lib/auth";   // 👈 Tambahan untuk membaca payload data user
+import { redirect, notFound } from "next/navigation"; 
+import { cookies } from "next/headers"; 
+import { decrypt } from "@/lib/auth";   
 
 export const dynamic = "force-dynamic";
 
-// Perbaikan: Definisi params untuk Next.js 15 harus dibungkus Promise
 export default async function EditUserPage({ params }: { params: Promise<{ id: string }> }) {
   // 🔥 1. AMBIL SESSION LOGIN UNTUK FIREWALL SECURED ENGINE
   const cookieStore = await cookies();
@@ -21,15 +20,28 @@ export default async function EditUserPage({ params }: { params: Promise<{ id: s
   const actorRole = (payload.role as string).toLowerCase();
   const actorBranch = payload.branch as string;
 
-  // 🔥 2. HAK AKSES READ-ONLY PROTECTION
+  // 🔥 2. HAK AKSES READ-ONLY PROTECTION (UI ELEGAN)
   // Akun ber-role 'user' dilarang keras masuk ke area manajemen konfigurasi user!
   if (actorRole === "user") {
-    notFound();
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-6 animate-in fade-in duration-500">
+        <div className="w-24 h-24 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mb-6 shadow-sm border border-rose-100">
+          <ShieldAlert className="w-12 h-12" />
+        </div>
+        <h1 className="text-3xl font-black text-slate-900 mb-2">Akses Ditolak</h1>
+        <p className="text-slate-500 max-w-md mx-auto mb-8 font-medium">
+          Akun Anda memiliki level akses <strong>Read-Only</strong>. Anda tidak diizinkan untuk memodifikasi konfigurasi akun pengguna di sistem ini.
+        </p>
+        <Link href="/users" className="px-6 py-3.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all shadow-lg active:scale-95">
+          Kembali ke Manajemen Akun
+        </Link>
+      </div>
+    );
   }
 
   const resolvedParams = await params;
   
-  // Perbaikan: Konversi ID ke Number karena database Anda Integer
+  // Konversi ID ke Number karena database Anda Integer
   const userId = parseInt(resolvedParams.id, 10);
 
   // Jika hasil parsing bukan angka, balikkan ke list
@@ -39,7 +51,7 @@ export default async function EditUserPage({ params }: { params: Promise<{ id: s
 
   // Ambil data user menggunakan ID angka
   const user = await prisma.user.findUnique({
-    where: { id: userId } // Sekarang ID sudah berupa Number
+    where: { id: userId } 
   });
 
   if (!user) {
@@ -49,6 +61,7 @@ export default async function EditUserPage({ params }: { params: Promise<{ id: s
   // 🔥 3. SECURITY FIREWALL IDOR PROTEKSI (KONTROL WILAYAH ADMIN)
   // Jika dia Admin biasa, dia hanya bisa mengedit user di cabangnya sendiri.
   // Dan Admin biasa dilarang keras mengubah profil milik seorang Superadmin!
+  // Kita biarkan pakai notFound() di sini agar hacker tidak tahu kalau ID tersebut valid
   if (actorRole === "admin") {
     if (user.branch !== actorBranch || user.role.toLowerCase() === "superadmin") {
       notFound();

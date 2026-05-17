@@ -1,9 +1,44 @@
 import { addUser } from "../actions";
 import Link from "next/link";
-import { ArrowLeft, UserPlus, Shield, Building2 } from "lucide-react";
-import { BRANCHES } from "@/lib/constants"; // 👈 Import daftar cabang
+import { ArrowLeft, UserPlus, Shield, Building2, ShieldAlert } from "lucide-react"; // 👈 Tambah ShieldAlert
+import { BRANCHES } from "@/lib/constants"; 
+import { cookies } from "next/headers"; // 👈 Tambahan Session Reader
+import { decrypt } from "@/lib/auth";   // 👈 Tambahan Decrypt Engine
+import { redirect } from "next/navigation";
 
-export default function AddUserPage() {
+export const dynamic = "force-dynamic";
+
+export default async function AddUserPage() {
+  // ====================================================================
+  // 🔥 1. ABSOLUTE SERVER-SIDE FIREWALL (ANTI TEMBAK URL)
+  // ====================================================================
+  const cookieStore = await cookies();
+  const token = cookieStore.get("session")?.value;
+  const payload = token ? await decrypt(token) : null;
+
+  if (!payload) redirect("/login");
+
+  const userRole = (payload.role as string).toLowerCase();
+
+  // 🛑 JIKA ROLENYA 'USER', TAMPILKAN HALAMAN AKSES DITOLAK!
+  if (userRole === "user") {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-6 animate-in fade-in duration-500">
+        <div className="w-24 h-24 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mb-6 shadow-sm border border-rose-100">
+          <ShieldAlert className="w-12 h-12" />
+        </div>
+        <h1 className="text-3xl font-black text-slate-900 mb-2">Akses Ditolak</h1>
+        <p className="text-slate-500 max-w-md mx-auto mb-8 font-medium">
+          Akun Anda memiliki level akses <strong>Read-Only</strong>. Anda tidak diizinkan untuk membuat kredensial akun baru di sistem ini.
+        </p>
+        <Link href="/users" className="px-6 py-3.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all shadow-lg active:scale-95">
+          Kembali ke Manajemen Akun
+        </Link>
+      </div>
+    );
+  }
+  // ====================================================================
+
   return (
     <div className="p-6 lg:p-10 max-w-4xl mx-auto space-y-8 font-sans">
       

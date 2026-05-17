@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ShieldAlert } from "lucide-react"; // 👈 Tambahan ShieldAlert
 import EditAssetForm from "./EditAssetForm";
-import { cookies } from "next/headers"; // 👈 Tambahan untuk session
-import { decrypt } from "@/lib/auth";   // 👈 Tambahan untuk membaca session
+import { cookies } from "next/headers";
+import { decrypt } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -23,26 +23,47 @@ export default async function EditAssetPage({ params }: { params: Promise<{ id: 
 
   const userRole = (payload.role as string).toLowerCase();
   const userBranch = payload.branch as string;
+  const isSuperAdmin = userRole === "superadmin";
 
-  // 1. PROTEKSI READ-ONLY ROLE:
-  // Karena peran 'user' hanya boleh membaca, mereka dilarang keras masuk ke halaman edit.
-  // Jika nekat ketik URL manual, langsung lempar ke 404.
+  // 1. PROTEKSI READ-ONLY ROLE (Konsisten dengan halaman Add)
   if (userRole === "user") {
-    notFound();
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-6 animate-in fade-in duration-500">
+        <div className="w-24 h-24 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mb-6">
+          <ShieldAlert className="w-12 h-12" />
+        </div>
+        <h1 className="text-3xl font-black text-slate-900 mb-2">Akses Ditolak</h1>
+        <p className="text-slate-500 max-w-md mx-auto mb-8 font-medium">
+          Akun Anda memiliki level akses <strong>Read-Only</strong>. Anda tidak diizinkan untuk menambah, mengubah, atau menghapus data di sistem ini.
+        </p>
+        <Link href={`/assets/${assetId}`} className="px-6 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all">
+          Kembali ke Detail Aset
+        </Link>
+      </div>
+    );
   }
 
-  // Tarik data paralel dari database
+  // 2. FIREWALL IDOR UNTUK PILIHAN KATEGORI
+  const whereClause: any = {};
+  if (!isSuperAdmin) {
+    whereClause.branch = userBranch || "UNKNOWN_BRANCH";
+  }
+
+  // Tarik data paralel dari database (Kategori sekarang terlindungi dari IDOR)
   const [rawAsset, categories] = await Promise.all([
     prisma.asset.findUnique({ where: { id: assetId } }),
-    prisma.category.findMany({ select: { id: true, category_name: true } })
+    prisma.category.findMany({ 
+      where: whereClause, // 👈 Filter Kategori Berdasarkan Cabang Admin
+      select: { id: true, category_name: true } 
+    })
   ]);
 
   if (!rawAsset) notFound();
 
-  // 2. PROTEKSI IDOR URL MANIPULATION:
-  // Jika bukan superadmin, dan cabang aset berberda dengan cabang loginnya, TENDANG!
-  if (userRole !== "superadmin" && rawAsset.branch !== userBranch) {
-    notFound();
+  // 3. PROTEKSI IDOR URL MANIPULATION (Untuk Aset Utama):
+  // Jika bukan superadmin, dan cabang aset berbeda dengan cabang loginnya, LEMPAR 404!
+  if (!isSuperAdmin && rawAsset.branch !== userBranch) {
+    notFound(); // Dibuat 404 agar penyerang mengira data aset tersebut memang tidak ada
   }
   // ====================================================================
 
@@ -75,6 +96,7 @@ export default async function EditAssetPage({ params }: { params: Promise<{ id: 
         </h1>
       </div>
 
+      {/* Komponen form sama sekali tidak disentuh */}
       <EditAssetForm asset={asset} categories={categories} />
     </div>
   );

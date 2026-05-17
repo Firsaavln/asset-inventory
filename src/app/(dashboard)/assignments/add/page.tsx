@@ -2,36 +2,67 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { decrypt } from "@/lib/auth";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ShieldAlert } from "lucide-react"; // 👈 Tambahan icon ShieldAlert
+import { redirect } from "next/navigation"; // 👈 Tambahan fungsi redirect
 import AddAssignmentForm from "./AddAssignmentForm"; // 👈 Komponen yang akan kita buat
 
 export const dynamic = "force-dynamic";
 
 export default async function AddAssignmentPage() {
-  // 1. Ambil data session
+  // ====================================================================
+  // 🔥 1. ABSOLUTE SERVER-SIDE FIREWALL (ANTI TEMBAK URL)
+  // ====================================================================
+  // Ambil data session
   const cookieStore = await cookies();
   const token = cookieStore.get("session")?.value;
   const payload = token ? await decrypt(token) : null;
-  const userRole = payload?.role as string;
-  const userBranch = payload?.branch as string;
 
-  const isSuperAdmin = userRole?.toLowerCase() === "superadmin";
+  // Jika tidak ada session (belum login/expired), lempar ke halaman login
+  if (!payload) redirect("/login");
+
+  const userRole = (payload.role as string).toLowerCase();
+  const userBranch = payload.branch as string;
+  const isSuperAdmin = userRole === "superadmin";
+
+  // 🛑 JIKA ROLENYA 'USER', TAMPILKAN HALAMAN AKSES DITOLAK!
+  if (userRole === "user") {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-6 animate-in fade-in duration-500">
+        <div className="w-24 h-24 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mb-6">
+          <ShieldAlert className="w-12 h-12" />
+        </div>
+        <h1 className="text-3xl font-black text-slate-900 mb-2">Akses Ditolak</h1>
+        <p className="text-slate-500 max-w-md mx-auto mb-8 font-medium">
+          Akun Anda memiliki level akses <strong>Read-Only</strong>. Anda tidak diizinkan untuk menambah, mengubah, atau menghapus data di sistem ini.
+        </p>
+        <Link href="/assignments" className="px-6 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all">
+          Kembali ke Daftar Serah Terima
+        </Link>
+      </div>
+    );
+  }
+  // ====================================================================
+
+  // 🔥 2. OPTIMIZED DATABASE QUERY & IDOR PROTECTION
   const whereClause: any = { 
     status: "Available" 
   };
 
   // Jika bukan Superadmin, hanya boleh lihat aset "Available" di cabangnya sendiri
   if (!isSuperAdmin) {
-    // 🔥 PERBAIKAN: Hapus mode: "insensitive" karena MySQL sudah otomatis
     whereClause.branch = userBranch || "UNKNOWN_BRANCH";
   }
 
+  // Mengambil data aset yang tersedia dengan select agar query lebih ringan (Optimasi)
   const availableAssets = await prisma.asset.findMany({
     where: whereClause,
     select: { id: true, asset_code: true, asset_name: true },
     orderBy: { asset_name: "asc" }
   });
 
+  // ====================================================================
+  // 🔥 3. RENDER UI (TIDAK ADA YANG DIUBAH)
+  // ====================================================================
   return (
     <div className="p-6 lg:p-10 max-w-3xl mx-auto space-y-8">
       <Link href="/assignments" className="flex items-center text-xs font-black text-slate-400 hover:text-indigo-600 gap-2 uppercase tracking-widest group w-fit">

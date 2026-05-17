@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { notFound, redirect } from "next/navigation"; // 👈 Tambah 'notFound' untuk stealth security
+import { notFound, redirect } from "next/navigation"; 
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ShieldAlert } from "lucide-react"; // 👈 Tambahan ShieldAlert
 import EditCategoryForm from "./EditCategoryForm"; 
-import { cookies } from "next/headers"; // 👈 Tambahan untuk mendeteksi session cookie
-import { decrypt } from "@/lib/auth";   // 👈 Tambahan untuk membaca payload data user
+import { cookies } from "next/headers"; 
+import { decrypt } from "@/lib/auth";   
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +19,22 @@ export default async function EditCategoryPage({ params }: { params: Promise<{ i
   const userRole = (payload.role as string).toLowerCase();
   const userBranch = payload.branch as string;
 
-  // 🔥 2. HAK AKSES READ-ONLY PROTECTION
-  // Akun ber-role 'user' hanya memiliki izin baca. Akses ke halaman edit dilarang keras!
+  // 🔥 2. HAK AKSES READ-ONLY PROTECTION (UI Elegan)
   if (userRole === "user") {
-    notFound();
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-6 animate-in fade-in duration-500">
+        <div className="w-24 h-24 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mb-6 shadow-sm border border-rose-100">
+          <ShieldAlert className="w-12 h-12" />
+        </div>
+        <h1 className="text-3xl font-black text-slate-900 mb-2">Akses Ditolak</h1>
+        <p className="text-slate-500 max-w-md mx-auto mb-8 font-medium">
+          Akun Anda memiliki level akses <strong>Read-Only</strong>. Anda tidak diizinkan untuk memodifikasi kategori di sistem ini.
+        </p>
+        <Link href="/categories" className="px-6 py-3.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all shadow-lg active:scale-95">
+          Kembali ke Daftar Kategori
+        </Link>
+      </div>
+    );
   }
 
   // 3. Resolve Params (Next.js 15) & Tarik data dari DB
@@ -39,7 +51,7 @@ export default async function EditCategoryPage({ params }: { params: Promise<{ i
   }
 
   // 🔥 4. SECURITY FIREWALL IDOR: Memastikan data kategori yang di-edit terikat pada cabang yang sah
-  if (userRole !== "superadmin" && (category as any).branch !== userBranch) {
+  if (userRole !== "superadmin" && category.branch !== userBranch) {
     notFound();
   }
 
