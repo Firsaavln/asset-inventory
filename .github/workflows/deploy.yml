@@ -1,29 +1,21 @@
-name: Deploy Asset Inventory to Local VM
+name: Deploy Asset Inventory
 
-# Kapan aksi ini dijalankan? Pas ada kode yang masuk ke branch 'main'
 on:
   push:
     branches:
-      - main # Ubah jadi 'master' kalau branch utama lu namanya master
+      - main # (Pastikan nama branch lu bener 'main', bukan 'master')
 
 jobs:
   deploy:
-    # Ini yang paling penting: Pakai agen yang udah lu tanem di VM tadi
     runs-on: self-hosted
 
     steps:
-      - name: 📥 Tarik Kodingan Terbaru
-        uses: actions/checkout@v4
-
-      - name: 📦 Install NPM Dependencies
-        run: npm install
-
-      - name: 🗄️ Sinkronisasi Prisma & Database
-        run: npx prisma generate
-
-      - name: 🏗️ Kompilasi Next.js (Build)
-        run: npx next build
-
-      - name: 🚀 Restart Aplikasi via PM2
-        # Karena PM2 udah lu save sebelumnya, kita cukup restart aja namanya
-        run: pm2 restart asset-inventory
+      - name: 🚀 Update, Build, & Restart PM2
+        # Kita paksa runner untuk pindah folder dulu sebelum eksekusi
+        run: |
+          cd /var/www/asset-inventory
+          git pull origin main
+          npm install
+          npx prisma generate
+          npx next build
+          pm2 restart asset-inventory

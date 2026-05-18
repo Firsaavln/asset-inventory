@@ -114,7 +114,7 @@ export default async function DashboardPage() {
             </div>
           </div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-            Dashboard Utama
+            Dashboard
           </h1>
           <p className="text-xs sm:text-sm md:text-base text-slate-500 font-medium max-w-2xl leading-relaxed">
             Ringkasan eksekutif pemanfaatan aset operasional perusahaan. Pantau nilai investasi, tingkat utilisasi, dan kesehatan inventaris secara real-time.
