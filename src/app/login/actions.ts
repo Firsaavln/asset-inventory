@@ -34,8 +34,9 @@ export async function loginAction(formData: FormData) {
   cookieStore.set("session", session, { 
     expires, 
     // httpOnly: true, 
-    httpOnly: false,
-    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    secure:false,
+    // secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/" 
   });
