@@ -33,7 +33,8 @@ export async function loginAction(formData: FormData) {
   const cookieStore = await cookies();
   cookieStore.set("session", session, { 
     expires, 
-    httpOnly: true, 
+    // httpOnly: true, 
+    httpOnly: false,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/" 
