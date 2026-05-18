@@ -135,7 +135,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* 🔥 EXECUTIVE QUICK INSIGHTS (METRIK BARU) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+      {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         <div className="bg-rose-50/50 border border-rose-100 rounded-2xl p-4 sm:p-5 flex items-center gap-4">
           <div className="p-3 bg-rose-500 text-white rounded-xl shadow-sm shrink-0"><AlertTriangle className="w-5 h-5" /></div>
           <div>
@@ -150,7 +150,7 @@ export default async function DashboardPage() {
             <p className="text-sm sm:text-lg font-black text-slate-800">{expiringWarrantyCount} Unit Mendekati Kedaluwarsa</p>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* --- KPI CARDS (4 Kolom) --- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
