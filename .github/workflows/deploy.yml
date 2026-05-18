@@ -3,7 +3,7 @@ name: Deploy Asset Inventory
 on:
   push:
     branches:
-      - main # (Pastikan nama branch lu bener 'main', bukan 'master')
+      - main
 
 jobs:
   deploy:
@@ -11,10 +11,11 @@ jobs:
 
     steps:
       - name: 🚀 Update, Build, & Restart PM2
-        # Kita paksa runner untuk pindah folder dulu sebelum eksekusi
+        # Kita pakai jurus Hard Reset biar VM selalu nurut 100% sama GitHub
         run: |
           cd /var/www/asset-inventory
-          git pull origin main
+          git fetch origin main
+          git reset --hard origin/main
           npm install
           npx prisma generate
           npx next build
